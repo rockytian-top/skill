@@ -1,5 +1,5 @@
 #!/bin/bash
-# rocky-know-how 自动安装脚本
+# rocky-know-how 自动安装脚本 v1.3.0
 # 用法: bash install.sh [--skip-config] [--force]
 
 set -e
@@ -39,18 +39,19 @@ if [ "$SKIP_CONFIG" = false ]; then
   if grep -q "rocky-know-how" "$OPENCLAW_CONFIG" 2>/dev/null; then
     [ "$FORCE" = false ] && echo "✅ Hook 已配置" || echo "⚠️  使用 --force 重新配置"
   else
-    # 使用 python 安全修改 JSON，添加 hook 目录
+    # 使用 python3 安全修改 JSON，通过命令行参数传路径（避免 heredoc 变量注入）
     HOOK_PATH="$SKILL_DIR/hooks"
-    python3 - << PYEOF
+    python3 - "$OPENCLAW_CONFIG" "$HOOK_PATH" << 'PYEOF'
 import json, sys
-cfg = "$OPENCLAW_CONFIG"
 try:
+    cfg = sys.argv[1]
+    hook_path = sys.argv[2]
     with open(cfg) as f:
         d = json.load(f)
     hooks = d.get("hooks", {}).get("internal", {}).get("load", {})
     dirs = hooks.get("extraDirs", [])
-    if "$HOOK_PATH" not in dirs:
-        dirs.append("$HOOK_PATH")
+    if hook_path not in dirs:
+        dirs.append(hook_path)
         hooks["extraDirs"] = dirs
         d["hooks"]["internal"]["load"] = hooks
         with open(cfg, "w") as f:
@@ -61,7 +62,8 @@ try:
         print("✅ Hook 已配置")
 except Exception as e:
     print(f"⚠️  配置失败: {e}")
-    print(f"请手动在 openclaw.json 的 hooks.internal.load.extraDirs 中添加: $HOOK_PATH")
+    hook_path = sys.argv[2] if len(sys.argv) > 2 else "SKILL_DIR/hooks"
+    print(f"请手动在 openclaw.json 的 hooks.internal.load.extraDirs 中添加: {hook_path}")
     sys.exit(1)
 PYEOF
   fi

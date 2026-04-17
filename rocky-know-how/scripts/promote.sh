@@ -35,13 +35,14 @@ TAGS_DATA=$(awk -v cutoff="$CUTOFF_DATE" '
   /^## \[EXP-/ {
     date = substr($0, index($0, "[EXP-") + 5, 8)
     if (date >= cutoff) {
-      for (i = 1; i <= 10; i++) {
+      # 继续往后读找 Tags 行
+      while (getline > 0) {
         if (/^\*\*Tags\*\*:/) {
           sub(/^\*\*Tags\*\*: /, "")
           print
-          next
+          break
         }
-        getline
+        if (/^## \[EXP-/) break
       }
     }
   }

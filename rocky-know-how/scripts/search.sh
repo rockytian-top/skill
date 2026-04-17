@@ -106,7 +106,7 @@ score_block() {
     local entry_tags=$(grep "^\*\*Tags\*\*:" "$block_file" | head -1 | sed 's/\*\*Tags\*\*: //')
     local tag_miss=false
     for t in $(echo "$FILTER_TAG" | tr ',' '\n' | sed 's/^ *//;s/ *$//' | grep -v '^$'); do
-      if ! echo "$entry_tags" | grep -qi --color=never "$t" 2>/dev/null; then
+      if ! echo ",${entry_tags}," | grep -qi --color=never ",${t}," 2>/dev/null; then
         tag_miss=true
         break
       fi

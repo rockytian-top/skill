@@ -91,8 +91,10 @@ case "$MODE" in
         seq=$((seq+1))
         new_id="EXP-${TODAY}-$(printf '%03d' $seq)"
         # 提取标题
+        # 提取原始日期
+        orig_date=$(echo "$line" | sed 's/.*\[EXP-\([0-9]\{8\}\)-.*/\1/')
         title=$(echo "$line" | sed 's/^## \[EXP-[0-9]*-[0-9]*\] //')
-        current_block="## [${new_id}] ${title}"
+        current_block="## [${orig_date}-$(printf '%03d' $seq)] ${title}"
       else
         current_block="$current_block"$'\n'"$line"
       fi

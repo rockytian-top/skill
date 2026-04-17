@@ -39,7 +39,9 @@ extract_date() {
 
 # 检查是否应该归档
 is_old() {
-  [ "${1:-0}" -lt "$CUTOFF_DATE" ] 2>/dev/null
+  local d="$1"
+  [ -z "$d" ] && return 1
+  [ "$d" -lt "$CUTOFF_DATE" ] 2>/dev/null
 }
 
 # auto 模式：静默执行，只输出摘要
@@ -76,7 +78,7 @@ if $AUTO; then
       fi
       current_block="$line"
       date=$(extract_date "$line")
-      in_old=$(is_old "$date" && echo true || echo false)
+      in_old=false; is_old "$date" && in_old=true
     else
       current_block="${current_block}
 ${line}"
@@ -140,7 +142,7 @@ while IFS= read -r line; do
     fi
     current_block="$line"
     date=$(extract_date "$line")
-    in_old=$(is_old "$date" && echo true || echo false)
+    in_old=false; is_old "$date" && in_old=true
   else
     current_block="${current_block}
 ${line}"

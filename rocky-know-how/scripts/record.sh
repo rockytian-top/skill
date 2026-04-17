@@ -60,8 +60,12 @@ check_duplicate() {
 
   # 1. 精确问题文本匹配
   if grep -qF "$PROBLEM" "$ERRORS_FILE" 2>/dev/null; then
-    found_id=$(grep -B0 "^## \[EXP-" "$ERRORS_FILE" | head -1 | sed 's/## \[\(EXP-[0-9]*-[0-9]*\)\].*/\1/')
-    found_summary=$(grep -A1 "^### 问题$" "$ERRORS_FILE" | grep -F "$PROBLEM" | head -1)
+    # 从包含问题的行往回找最近的 EXP-ID
+    found_id=$(grep -n -F "$PROBLEM" "$ERRORS_FILE" | head -1 | cut -d: -f1)
+    if [ -n "$found_id" ]; then
+      found_id=$(sed -n "1,${found_id}p" "$ERRORS_FILE" | grep '^## \[EXP-' | tail -1 | sed 's/## \[\(EXP-[0-9]*-[0-9]*\)\].*/\1/')
+    fi
+    found_summary="$PROBLEM"
   fi
 
   # 2. Tags 组合 + 问题关键词重叠去重
@@ -92,7 +96,7 @@ check_duplicate() {
         [ "$total" -eq 0 ] && { prev=$line; continue; }
         local match=0
         while IFS= read -r w; do
-          echo "$exist_words" | grep -qF "$w" && match=$((match+1))
+          echo "$exist_words" | grep -qF --color=never "$w" && match=$((match+1))
         done < <(echo "$new_words")
         local ratio=$((match * 100 / total))
         if [ "$ratio" -ge 80 ]; then
