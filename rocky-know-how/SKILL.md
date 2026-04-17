@@ -1,6 +1,6 @@
 ---
 name: rocky-know-how
-version: 1.3.0
+version: 1.3.6
 description: "经验诀窍技能 — 失败≥2次自动搜经验诀窍，解决后写入。支持相关度排序、标签/领域筛选、自动归档、历史导入。"
 author: rocky
 license: MIT

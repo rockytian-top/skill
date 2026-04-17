@@ -1,5 +1,5 @@
 /**
- * rocky-know-how Hook for OpenClaw v1.3.5
+ * rocky-know-how Hook for OpenClaw v1.3.6
  *
  * Agent 启动时注入经验诀窍技能提醒。
  * 动态获取工作区路径，适配所有用户环境。
@@ -80,7 +80,7 @@ const handler = async (event) => {
   const dataStatus = hasData ? '有数据' : '暂无数据（首次使用 record.sh 创建）';
 
   const REMINDER = `
-## 📚 经验诀窍提醒 (rocky-know-how) v1.3.5
+## 📚 经验诀窍提醒 (rocky-know-how) v1.3.6
 
 你有一个经验诀窍技能。当前状态：${dataStatus}
 

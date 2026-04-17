@@ -4,7 +4,7 @@ description: "经验诀窍技能 — 失败≥2次自动搜经验诀窍，解决
 metadata: {"openclaw":{"emoji":"📚","events":["agent:bootstrap"]}}
 ---
 
-# rocky-know-how Hook v1.3.0
+# rocky-know-how Hook v1.3.6
 
 Agent 启动时自动注入经验诀窍提醒到 bootstrap 上下文。
 
@@ -29,7 +29,7 @@ Agent 启动时自动注入经验诀窍提醒到 bootstrap 上下文。
 7. Agent 收到包含使用规则的上下文
 ```
 
-## v1.3.0 更新
+## v1.3.6 更新
 
 - 搜索支持 --tag / --area / 相关度排序
 - record.sh 支持 --dry-run
