@@ -1,11 +1,9 @@
 /**
- * rocky-know-how Hook for OpenClaw
+ * rocky-know-how Hook for OpenClaw v1.3.0
  *
  * Agent 启动时注入经验诀窍技能提醒。
  * 动态获取工作区路径，适配所有用户环境。
  * 共享路径：~/.openclaw/.learnings/
- *
- * @version 1.2.0
  */
 
 const { existsSync } = require('fs');
@@ -13,14 +11,11 @@ const { join } = require('path');
 
 /**
  * 从 sessionKey 提取 agent ID 并构造工作区路径
- * sessionKey 格式: agent:my-agent:main 或 agent:my-agent:subagent:xxx
  */
 function getWorkspace(sessionKey, env) {
-  // 1. 优先使用环境变量
   if (env.OPENCLAW_WORKSPACE) {
     return env.OPENCLAW_WORKSPACE;
   }
-  // 2. 从 sessionKey 推导 (格式: agent:{agentId}:main)
   if (sessionKey && typeof sessionKey === 'string') {
     const parts = sessionKey.split(':');
     if (parts.length >= 2 && parts[0] === 'agent') {
@@ -28,32 +23,47 @@ function getWorkspace(sessionKey, env) {
       return `${home}/.openclaw/workspace-${parts[1]}`;
     }
   }
-  // 3. 回退到默认工作区
   const home = env.HOME || process.env.HOME || '~';
   return `${home}/.openclaw/workspace`;
 }
 
 /**
  * 动态定位 scripts 目录
- * 支持多种安装方式：skills/ 子目录、直接克隆、symbolic link
+ * 支持多种安装方式和跨 workspace 共享
  */
 function findScriptsDir(workspace) {
   const candidates = [
-    // 标准安装: workspace/skills/rocky-know-how/skills/rocky-know-how/scripts
-    join(workspace, 'skills', 'rocky-know-how', 'skills', 'rocky-know-how', 'scripts'),
-    // 直接克隆: workspace/skills/rocky-know-how/scripts
+    // 标准安装: workspace/skills/rocky-know-how/scripts
     join(workspace, 'skills', 'rocky-know-how', 'scripts'),
+    // 嵌套安装: workspace/skills/rocky-know-how/skills/rocky-know-how/scripts
+    join(workspace, 'skills', 'rocky-know-how', 'skills', 'rocky-know-how', 'scripts'),
     // 顶层安装: workspace/scripts
     join(workspace, 'scripts'),
   ];
+
+  // 跨 workspace：检查 shared 目录
+  const home = process.env.HOME || '~';
+  candidates.push(
+    // shared workspace
+    join(home, '.openclaw', 'workspace', 'skills', 'rocky-know-how', 'scripts'),
+    // 全局安装
+    join(home, '.openclaw', 'skills', 'rocky-know-how', 'scripts'),
+  );
 
   for (const dir of candidates) {
     if (existsSync(join(dir, 'search.sh'))) {
       return dir;
     }
   }
-  // 回退：假设在 skills/rocky-know-how 标准路径下
-  return join(workspace, 'skills', 'rocky-know-how', 'skills', 'rocky-know-how', 'scripts');
+  // 回退
+  return join(workspace, 'skills', 'rocky-know-how', 'scripts');
+}
+
+/**
+ * 检测经验诀窍数据是否存在
+ */
+function hasExperienceData(home) {
+  return existsSync(join(home, '.openclaw', '.learnings', 'experiences.md'));
 }
 
 const handler = async (event) => {
@@ -65,14 +75,18 @@ const handler = async (event) => {
   const sessionKey = event.sessionKey || '';
   if (sessionKey.includes(':subagent:')) return;
 
-  // 动态获取工作区路径
+  // 动态获取路径
   const workspace = getWorkspace(sessionKey, process.env);
   const scriptsDir = findScriptsDir(workspace);
+  const home = process.env.HOME || '~';
+  const hasData = hasExperienceData(home);
+
+  const dataStatus = hasData ? '有数据' : '暂无数据（首次使用 record.sh 创建）';
 
   const REMINDER = `
-## 📚 经验诀窍提醒 (rocky-know-how) v1.2.0
+## 📚 经验诀窍提醒 (rocky-know-how) v1.3.0
 
-你有一个经验诀窍技能。使用规则：
+你有一个经验诀窍技能。当前状态：${dataStatus}
 
 **失败≥2次时** → 执行搜经验诀窍：
 \`\`\`bash
@@ -86,12 +100,19 @@ bash ${scriptsDir}/search.sh "关键词1" "关键词2"
 bash ${scriptsDir}/record.sh "问题一句话" "踩坑过程" "正确方案" "预防措施" "tag1,tag2" "area"
 \`\`\`
 area 可选: frontend|backend|infra|tests|docs|config (默认: infra)
+加 --dry-run 先预览不写入。
+
+**搜索增强**：
+- \`${scriptsDir}/search.sh --tag "tag1,tag2"\` — 按标签搜索（AND）
+- \`${scriptsDir}/search.sh --area infra\` — 按领域搜索
+- \`${scriptsDir}/search.sh --preview "关键词"\` — 摘要模式
+- \`${scriptsDir}/search.sh --all\` — 查看全部
 
 **其他命令**：
-- \`${scriptsDir}/search.sh --all\` — 查看全部
-- \`${scriptsDir}/search.sh --preview "关键词"\` — 摘要模式
 - \`${scriptsDir}/stats.sh\` — 统计面板
 - \`${scriptsDir}/promote.sh\` — Tag晋升检查
+- \`${scriptsDir}/import.sh --dry-run\` — 从 memory 导入历史教训
+- \`${scriptsDir}/archive.sh --auto\` — 自动归档旧条目
 
 **重要**: 经验诀窍存储在 ~/.openclaw/.learnings/（全局共享），所有 agent 通用。
 `.trim();
