@@ -1,10 +1,21 @@
 #!/bin/bash
-# rocky-know-how 写入经验诀窍 v1.3.0
+# rocky-know-how 写入经验诀窍 v1.3.5
 # 用法: record.sh [--dry-run] "<问题>" "<踩坑过程>" "<正确方案>" "<预防>" "<tags>" [area]
 # 例: record.sh "排查网站只看进程" "第1次:只看进程→报正常" "curl验证" "必须curl" "troubleshooting" infra
 
 SKILL_DIR="$(cd "$(dirname "$0")" && pwd)"
-SHARED_DIR="$HOME/.openclaw/.learnings"
+
+# 动态获取状态目录（适配多网关实例）
+get_state_dir() {
+  if [ -n "$OPENCLAW_STATE_DIR" ]; then
+    echo "$OPENCLAW_STATE_DIR"
+  else
+    echo "$HOME/.openclaw"
+  fi
+}
+
+STATE_DIR=$(get_state_dir)
+SHARED_DIR="$STATE_DIR/.learnings"
 ERRORS_FILE="$SHARED_DIR/experiences.md"
 
 # 初始化
@@ -17,15 +28,15 @@ init_file() {
   fi
 }
 
-# 动态获取 workspace 路径（和 handler.js 保持一致）
+# 动态获取 workspace 路径
 get_workspace() {
   if [ -n "$OPENCLAW_WORKSPACE" ]; then
     echo "$OPENCLAW_WORKSPACE"
   elif [ -n "$OPENCLAW_SESSION_KEY" ]; then
     agentId=$(echo "$OPENCLAW_SESSION_KEY" | cut -d: -f2)
-    echo "$HOME/.openclaw/workspace-${agentId}"
+    echo "$STATE_DIR/workspace-${agentId}"
   else
-    echo "$HOME/.openclaw/workspace"
+    echo "$STATE_DIR/workspace"
   fi
 }
 
@@ -70,7 +81,6 @@ check_duplicate() {
 
   # 2. Tags 组合 + 问题关键词重叠去重
   if [ -z "$found_id" ] && [ -f "$ERRORS_FILE" ]; then
-    # 提取所有已有条目
     local prev=""
     local lines=$(grep -n "^## \[EXP-" "$ERRORS_FILE" 2>/dev/null | cut -d: -f1)
     [ -z "$lines" ] && return 1
@@ -79,17 +89,14 @@ check_duplicate() {
       [ -z "$prev" ] && { prev=$line; continue; }
       local block=$(sed -n "${prev},$((line-1))p" "$ERRORS_FILE")
 
-      # 提取已有 Tags
       local exist_tags=$(echo "$block" | grep "^\*\*Tags\*\*:" | sed 's/\*\*Tags\*\*: //' | tr ',' ' ')
       local exist_problem=$(echo "$block" | sed -n '/^### 问题$/{n;p;}')
       local exist_id=$(echo "$block" | grep "^## \[EXP-" | sed 's/## \[\(EXP-[0-9]*-[0-9]*\)\].*/\1/')
 
-      # Tags 完全匹配检查
       local sorted_new=$(echo "$TAGS" | tr ',' '\n' | sed 's/^ *//;s/ *$//' | sort | tr '\n' ',' | sed 's/,$//')
       local sorted_exist=$(echo "$exist_tags" | sed 's/  */ /g' | tr ' ' '\n' | sort | tr '\n' ',' | sed 's/,$//')
 
       if [ "$sorted_new" = "$sorted_exist" ]; then
-        # 关键词重叠检查（>80%）
         local new_words=$(echo "$PROBLEM" | tr ' ' '\n' | grep -v '^$' | sort -u)
         local exist_words=$(echo "$exist_problem" | tr ' ' '\n' | grep -v '^$' | sort -u)
         local total=$(echo "$new_words" | wc -l | tr -d ' ')
@@ -140,7 +147,6 @@ fi
 ID=$(generate_id)
 NOW=$(date '+%Y-%m-%d %H:%M:%S')
 
-# 要写入的内容
 ENTRY="
 
 ## [${ID}] ${PROBLEM}
@@ -176,7 +182,7 @@ fi
 echo "$ENTRY" >> "$ERRORS_FILE"
 echo "✅ 已写入经验诀窍: ${ID} [${AREA}]"
 
-# P0: 同步写入 memory/*.md（让原生 memory_search 能搜到）
+# 同步写入 memory/*.md
 WORKSPACE=$(get_workspace)
 MEMORY_DIR="$WORKSPACE/memory"
 MEMORY_FILE="$MEMORY_DIR/$(date +%Y-%m-%d).md"
@@ -196,7 +202,7 @@ MEMEOF
   echo "✅ 已同步到 memory/$(date +%Y-%m-%d).md"
 fi
 
-# 异步晋升检查（传入 workspace 路径）
+# 异步晋升检查
 (
-  WORKSPACE="$WORKSPACE" "$SKILL_DIR/promote.sh" >> /dev/null 2>&1 &
+  WORKSPACE="$WORKSPACE" STATE_DIR="$STATE_DIR" "$SKILL_DIR/promote.sh" >> /dev/null 2>&1 &
 )

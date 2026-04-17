@@ -41,7 +41,16 @@ while [[ $# -gt 0 ]]; do
   esac
 done
 
-SHARED_DIR="$HOME/.openclaw/.learnings"
+# 动态获取状态目录（适配多网关实例）
+get_state_dir() {
+  if [ -n "$OPENCLAW_STATE_DIR" ]; then
+    echo "$OPENCLAW_STATE_DIR"
+  else
+    echo "$HOME/.openclaw"
+  fi
+}
+STATE_DIR=$(get_state_dir)
+SHARED_DIR="$STATE_DIR/.learnings"
 ERRORS_FILE="$SHARED_DIR/experiences.md"
 
 # --global: 收集各 agent workspace 的文件

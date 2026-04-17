@@ -21,7 +21,9 @@ while [[ $# -gt 0 ]]; do
   esac
 done
 
-SHARED_DIR="$HOME/.openclaw/.learnings"
+get_state_dir() { [ -n "$OPENCLAW_STATE_DIR" ] && echo "$OPENCLAW_STATE_DIR" || echo "$HOME/.openclaw"; }
+STATE_DIR=$(get_state_dir)
+SHARED_DIR="$STATE_DIR/.learnings"
 ERRORS_FILE="$SHARED_DIR/experiences.md"
 ARCHIVE_DIR="$SHARED_DIR/archive"
 

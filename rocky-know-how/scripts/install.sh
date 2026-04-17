@@ -15,7 +15,9 @@ echo ""
 
 # 1. 创建共享 .learnings 目录
 echo "📂 创建共享经验诀窍目录..."
-SHARED_DIR="$HOME/.openclaw/.learnings"
+get_state_dir() { [ -n "$OPENCLAW_STATE_DIR" ] && echo "$OPENCLAW_STATE_DIR" || echo "$HOME/.openclaw"; }
+STATE_DIR=$(get_state_dir)
+SHARED_DIR="$STATE_DIR/.learnings"
 mkdir -p "$SHARED_DIR/archive"
 if [ ! -f "$SHARED_DIR/experiences.md" ]; then
   printf "# 经验诀窍\n\n---\n" > "$SHARED_DIR/experiences.md"

@@ -6,7 +6,7 @@
 
 | 技能 / Skill | 版本 / Version | 说明 / Description |
 |------|------|------|
-| [rocky-know-how](./rocky-know-how/) | 1.3.5 | 经验诀窍 — 失败自动搜，解决自动写，经验跨 agent 共享 / Experience know-how — auto-search on failures, auto-record on success, shared across all agents |
+| [rocky-know-how](./rocky-know-how/) | 1.3.6 | 经验诀窍 — 失败自动搜，解决自动写，经验跨 agent 共享 / Experience know-how — auto-search on failures, auto-record on success, shared across all agents |
 
 ### rocky-know-how 简介
 

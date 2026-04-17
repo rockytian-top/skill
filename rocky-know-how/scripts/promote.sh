@@ -5,7 +5,9 @@
 # 环境变量: WORKSPACE (由 record.sh 传入)
 
 SKILL_DIR="$(cd "$(dirname "$0")" && pwd)"
-SHARED_DIR="$HOME/.openclaw/.learnings"
+get_state_dir() { [ -n "$OPENCLAW_STATE_DIR" ] && echo "$OPENCLAW_STATE_DIR" || echo "$HOME/.openclaw"; }
+STATE_DIR=$(get_state_dir)
+SHARED_DIR="$STATE_DIR/.learnings"
 ERRORS_FILE="$SHARED_DIR/experiences.md"
 
 [ ! -f "$ERRORS_FILE" ] && echo "经验诀窍文件不存在，跳过晋升检查" && exit 0
@@ -17,9 +19,9 @@ elif [ -n "$OPENCLAW_WORKSPACE" ]; then
   TOOLS_FILE="$OPENCLAW_WORKSPACE/TOOLS.md"
 elif [ -n "$OPENCLAW_SESSION_KEY" ]; then
   agentId=$(echo "$OPENCLAW_SESSION_KEY" | cut -d: -f2)
-  TOOLS_FILE="$HOME/.openclaw/workspace-${agentId}/TOOLS.md"
+  TOOLS_FILE="$STATE_DIR/workspace-${agentId}/TOOLS.md"
 else
-  TOOLS_FILE="$HOME/.openclaw/workspace/TOOLS.md"
+  TOOLS_FILE="$STATE_DIR/workspace/TOOLS.md"
 fi
 
 CUTOFF_DATE=$(date -v-30d +%Y%m%d 2>/dev/null || date -d "30 days ago" +%Y%m%d)
