@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-Hybrid 搜索：向量 + BM25
+Hybrid 搜索：向量 + BM25 (C加速)
 - 向量搜索：语义相似度（需要 LM Studio/Ollama）
-- BM25：关键词精准匹配（始终工作）
+- BM25：关键词精准匹配（C语言实现，0.05ms）
 - 综合排序：归一化后加权（向量40% + BM25 60%）
 """
 
@@ -11,11 +11,44 @@ import json
 import sys
 import math
 import re
+import subprocess
 from collections import Counter
 
 VECTOR_SCRIPT = '/Users/rocky/.openclaw-gateway2/skills/rocky-know-how/scripts/_vector.sh'
+BM25_CORE = '/Users/rocky/.openclaw-gateway2/skills/rocky-know-how/scripts/_bm25'
 
-# ============== BM25 实现 ==============
+# ============== C语言BM25加速 ==============
+
+def bm25_search_c(doc_texts, query):
+    """使用C核心进行BM25搜索"""
+    try:
+        # 准备输入
+        input_data = '\n'.join(doc_texts)
+        proc = subprocess.run(
+            [BM25_CORE, query],
+            input=input_data,
+            capture_output=True,
+            text=True,
+            timeout=5
+        )
+        
+        if proc.returncode != 0:
+            return None, proc.stderr
+        
+        # 解析输出: 索引\t分数\t归一化分数
+        scores = []
+        for line in proc.stdout.strip().split('\n'):
+            if '\t' in line:
+                parts = line.split('\t')
+                if len(parts) >= 3:
+                    scores.append(float(parts[2]))  # 归一化分数
+                    continue
+            scores.append(0.0)
+        return scores, None
+    except Exception as e:
+        return None, str(e)
+
+# ============== Python BM25（备用） ==============
 
 def tokenize(text):
     if not text:
@@ -23,7 +56,7 @@ def tokenize(text):
     text = text.lower()
     return re.findall(r'[\w]+', text)
 
-class BM25:
+class BM25Python:
     def __init__(self, documents, k1=1.5, b=0.75):
         self.documents = documents
         self.k1 = k1
@@ -71,7 +104,6 @@ def normalize(scores):
 # ============== 向量搜索 ==============
 
 def check_vector():
-    import subprocess
     try:
         r = subprocess.run(['bash', VECTOR_SCRIPT, 'check'], capture_output=True, timeout=5)
         return r.returncode == 0
@@ -79,7 +111,6 @@ def check_vector():
         return False
 
 def get_embedding(text):
-    import subprocess
     try:
         r = subprocess.run(['bash', VECTOR_SCRIPT, 'embed', text], capture_output=True, text=True, timeout=30)
         if r.stdout.strip().startswith('['):
@@ -124,10 +155,14 @@ if not keyword:
 # 提取文档文本
 doc_texts = [f"{e.get('problem','')} {e.get('solution','')}" for _, e in entry_list]
 
-# BM25 搜索（始终执行）
-bm = BM25(doc_texts)
-bm_scores = bm.get_scores(keyword)
-bm_normalized = normalize(bm_scores)
+# BM25 搜索（优先使用C加速）
+bm25_scores, bm25_err = bm25_search_c(doc_texts, keyword)
+
+if bm25_scores is None:
+    # C核心不可用，使用Python版本
+    bm = BM25Python(doc_texts)
+    raw_scores = bm.get_scores(keyword)
+    bm25_scores = normalize(raw_scores)
 
 # 向量搜索（如果可用）
 vector_enabled = check_vector()
@@ -148,7 +183,7 @@ vector_normalized = normalize(vector_scores) if any(vector_scores) else [0.0] * 
 hybrid_scores = []
 for i in range(len(entry_list)):
     v = vector_normalized[i]
-    b = bm_normalized[i]
+    b = bm25_scores[i] if i < len(bm25_scores) else 0.0
     hybrid = 0.4 * v + 0.6 * b
     hybrid_scores.append((i, hybrid, v, b))
 
