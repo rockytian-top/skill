@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-Hybrid 搜索：向量 + BM25 (C加速)
+Hybrid 搜索：向量 + BM25 (纯Python，跨平台)
 - 向量搜索：语义相似度（需要 LM Studio/Ollama）
-- BM25：关键词精准匹配（C语言实现，0.05ms）
+- BM25：关键词精准匹配（纯Python实现）
 - 综合排序：归一化后加权（向量40% + BM25 60%）
 """
 
@@ -11,102 +11,22 @@ import json
 import sys
 import math
 import re
-import subprocess
 from collections import Counter
 
-import os
-import sys
-import platform
+VECTOR_SCRIPT = '/Users/rocky/.openclaw-gateway2/skills/rocky-know-how/scripts/_vector.sh'
 
-# 动态获取脚本目录
-SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
-
-# 向量脚本
-VECTOR_SCRIPT = os.path.join(SCRIPT_DIR, '_vector.sh')
-
-# BM25核心 - 根据平台检测
-def find_bm25_core():
-    """根据平台查找BM25二进制"""
-    system = platform.system()
-    
-    # 可能的核心名称
-    candidates = []
-    if system == 'Darwin':
-        candidates = ['_bm25']
-    elif system == 'Linux':
-        candidates = ['_bm25']
-    elif system == 'Windows' or 'MINGW' in system or 'MSYS' in system:
-        candidates = ['_bm25.exe', '_bm25']
-    else:
-        candidates = ['_bm25']
-    
-    for name in candidates:
-        path = os.path.join(SCRIPT_DIR, name)
-        if os.path.isfile(path) and os.access(path, os.X_OK):
-            return path
-    
-    # 如果没找到可执行文件，尝试编译
-    build_script = os.path.join(SCRIPT_DIR, 'build_bm25.sh')
-    if os.path.isfile(build_script):
-        import subprocess
-        try:
-            print(f"编译BM25核心 for {system}...", file=sys.stderr)
-            subprocess.run(['bash', build_script], check=True, capture_output=True)
-            # 重新检测
-            for name in candidates:
-                path = os.path.join(SCRIPT_DIR, name)
-                if os.path.isfile(path) and os.access(path, os.X_OK):
-                    return path
-        except:
-            pass
-    
-    return None
-
-BM25_CORE = find_bm25_core()
-
-# ============== C语言BM25加速 ==============
-
-def bm25_search_c(doc_texts, query):
-    """使用C核心进行BM25搜索"""
-    if BM25_CORE is None:
-        return None, "BM25核心未找到"
-    
-    try:
-        # 准备输入
-        input_data = '\n'.join(doc_texts)
-        proc = subprocess.run(
-            [BM25_CORE, query],
-            input=input_data,
-            capture_output=True,
-            text=True,
-            timeout=5
-        )
-        
-        if proc.returncode != 0:
-            return None, proc.stderr
-        
-        # 解析输出: 索引\t分数\t归一化分数
-        scores = []
-        for line in proc.stdout.strip().split('\n'):
-            if '\t' in line:
-                parts = line.split('\t')
-                if len(parts) >= 3:
-                    scores.append(float(parts[2]))  # 归一化分数
-                    continue
-            scores.append(0.0)
-        return scores, None
-    except Exception as e:
-        return None, str(e)
-
-# ============== Python BM25（备用） ==============
+# ============== BM25 实现 ==============
 
 def tokenize(text):
+    """中英文分词"""
     if not text:
         return []
     text = text.lower()
-    return re.findall(r'[\w]+', text)
+    # 匹配字母数字组合（英文）和 Unicode汉字范围
+    return re.findall(r'[\w]+', text, re.UNICODE)
 
-class BM25Python:
+class BM25:
+    """BM25 关键词搜索引擎"""
     def __init__(self, documents, k1=1.5, b=0.75):
         self.documents = documents
         self.k1 = k1
@@ -124,10 +44,11 @@ class BM25Python:
                 self.doc_df[word] += 1
     
     def score(self, query, doc_index):
-        doc = self.documents[doc_index]
-        tokens = tokenize(doc)
+        """计算单个文档的BM25分数"""
+        tokens = tokenize(self.documents[doc_index])
         dl = len(tokens)
         score = 0.0
+        
         for word in tokenize(query):
             if word not in self.doc_tf[doc_index]:
                 continue
@@ -141,9 +62,11 @@ class BM25Python:
         return score
     
     def get_scores(self, query):
+        """获取所有文档的BM25分数"""
         return [self.score(query, i) for i in range(self.N)]
 
 def normalize(scores):
+    """归一化分数到0-1"""
     if not scores or max(scores) == 0:
         return scores
     min_s, max_s = min(scores), max(scores)
@@ -154,6 +77,8 @@ def normalize(scores):
 # ============== 向量搜索 ==============
 
 def check_vector():
+    """检查向量服务是否可用"""
+    import subprocess
     try:
         r = subprocess.run(['bash', VECTOR_SCRIPT, 'check'], capture_output=True, timeout=5)
         return r.returncode == 0
@@ -161,6 +86,8 @@ def check_vector():
         return False
 
 def get_embedding(text):
+    """获取文本的向量表示"""
+    import subprocess
     try:
         r = subprocess.run(['bash', VECTOR_SCRIPT, 'embed', text], capture_output=True, text=True, timeout=30)
         if r.stdout.strip().startswith('['):
@@ -170,6 +97,7 @@ def get_embedding(text):
     return None
 
 def cosine_sim(v1, v2):
+    """计算余弦相似度"""
     dot = sum(a*b for a,b in zip(v1, v2))
     n1 = math.sqrt(sum(a*a for a in v1))
     n2 = math.sqrt(sum(a*a for a in v2))
@@ -205,14 +133,10 @@ if not keyword:
 # 提取文档文本
 doc_texts = [f"{e.get('problem','')} {e.get('solution','')}" for _, e in entry_list]
 
-# BM25 搜索（优先使用C加速）
-bm25_scores, bm25_err = bm25_search_c(doc_texts, keyword)
-
-if bm25_scores is None:
-    # C核心不可用，使用Python版本
-    bm = BM25Python(doc_texts)
-    raw_scores = bm.get_scores(keyword)
-    bm25_scores = normalize(raw_scores)
+# BM25 搜索
+bm = BM25(doc_texts)
+bm_scores = bm.get_scores(keyword)
+bm_normalized = normalize(bm_scores)
 
 # 向量搜索（如果可用）
 vector_enabled = check_vector()
@@ -233,7 +157,7 @@ vector_normalized = normalize(vector_scores) if any(vector_scores) else [0.0] * 
 hybrid_scores = []
 for i in range(len(entry_list)):
     v = vector_normalized[i]
-    b = bm25_scores[i] if i < len(bm25_scores) else 0.0
+    b = bm_normalized[i]
     hybrid = 0.4 * v + 0.6 * b
     hybrid_scores.append((i, hybrid, v, b))
 
