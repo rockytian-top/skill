@@ -186,6 +186,57 @@ PYEOF
         extracted=$((extracted + 1))
         echo "[$filename] -> ${exp_id} ✓"
         
+        # 写入experiences.json
+        write_exp_json() {
+          local exp_json_file="$STATE_DIR/.learnings/experiences.json"
+          if [ -f "$exp_json_file" ]; then
+            python3 << PYEOF
+import json
+import time
+
+exp_id = "$exp_id"
+problem = """$problem"""
+solution = """$solution"""
+script_path = "$script_path"
+script_name = "$script_name"
+script_type = "$script_type"
+area = "$area"
+tags = "$tags"
+
+exp_file = "$exp_json_file"
+
+try:
+    with open(exp_file, 'r') as f:
+        data = json.load(f)
+    
+    # 确保entries结构存在
+    if 'entries' not in data:
+        data['entries'] = {}
+    
+    entries = data['entries']
+    entries[exp_id] = {
+        'id': exp_id,
+        'problem': problem,
+        'solution': solution,
+        'script': script_path,
+        'scriptName': script_name,
+        'scriptType': script_type,
+        'tags': tags,
+        'area': area,
+        'created': int(time.time()),
+        'useCount': 0
+    }
+    
+    with open(exp_file, 'w') as f:
+        json.dump(data, f, ensure_ascii=False, indent=2)
+    print(f"json updated: {exp_id}")
+except Exception as e:
+    print(f"json error: {e}")
+PYEOF
+          fi
+        }
+        write_exp_json
+        
         # 移到 archive
         mv "$file" "$PROCESSED_DIR/"
       fi

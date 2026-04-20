@@ -297,10 +297,17 @@ cmd_search() {
 import json
 with open('$EXPERIENCES_FILE', 'r') as f:
     data = json.load(f)
-for exp in data.get('experiences', []):
-    if '$keyword' in exp.get('problem', '') or '$keyword' in exp.get('solution', ''):
-        script = exp.get('scriptName', '(无脚本)')
-        print(f\"  {exp.get('id')}: {exp.get('problem', '')[:40]}... [{script}]\")
+entries = data.get('entries', data.get('experiences', {}))
+if isinstance(entries, dict):
+    for exp_id, exp in entries.items():
+        if '$keyword' in exp.get('problem', '') or '$keyword' in exp.get('solution', ''):
+            script = exp.get('scriptName', '(无脚本)')
+            print(f'  {exp_id}: {exp.get("problem", "")[:40]}... [{script}]')
+else:
+    for exp in entries:
+        if '$keyword' in exp.get('problem', '') or '$keyword' in exp.get('solution', ''):
+            script = exp.get('scriptName', '(无脚本)')
+            print(f'  {exp.get("id")}: {exp.get("problem", "")[:40]}... [{script}]')
 " 2>/dev/null || echo "")
         
         if [ -n "$exp_results" ]; then
