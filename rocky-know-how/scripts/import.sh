@@ -22,9 +22,7 @@ while [[ $# -gt 0 ]]; do
 done
 
 SKILL_DIR="$(cd "$(dirname "$0")" && pwd)"
-get_state_dir() { [ -n "$OPENCLAW_STATE_DIR" ] && echo "$OPENCLAW_STATE_DIR" || echo "$HOME/.openclaw"; }
-STATE_DIR=$(get_state_dir)
-SHARED_DIR="$STATE_DIR/.learnings"
+SHARED_DIR="$HOME/.openclaw/.learnings"
 ERRORS_FILE="$SHARED_DIR/experiences.md"
 
 # 默认关键词
@@ -38,9 +36,9 @@ if [ -n "$OPENCLAW_WORKSPACE" ]; then
   WORKSPACE="$OPENCLAW_WORKSPACE"
 elif [ -n "$OPENCLAW_SESSION_KEY" ]; then
   agentId=$(echo "$OPENCLAW_SESSION_KEY" | cut -d: -f2)
-  WORKSPACE="$STATE_DIR/workspace-${agentId}"
+  WORKSPACE="$HOME/.openclaw/workspace-${agentId}"
 else
-  WORKSPACE="$STATE_DIR/workspace"
+  WORKSPACE="$HOME/.openclaw/workspace"
 fi
 
 if [ -z "$MEMORY_DIR" ]; then

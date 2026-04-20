@@ -2,9 +2,7 @@
 # rocky-know-how 清理工具
 # 用法: clean.sh [--test] [--old] [--reindex]
 
-get_state_dir() { [ -n "$OPENCLAW_STATE_DIR" ] && echo "$OPENCLAW_STATE_DIR" || echo "$HOME/.openclaw"; }
-STATE_DIR=$(get_state_dir)
-SHARED_DIR="$STATE_DIR/.learnings"
+SHARED_DIR="$HOME/.openclaw/.learnings"
 ERRORS_FILE="$SHARED_DIR/experiences.md"
 
 [ ! -f "$ERRORS_FILE" ] && echo "文件不存在" && exit 0

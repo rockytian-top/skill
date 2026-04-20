@@ -2,9 +2,7 @@
 # rocky-know-how 统计面板
 # 用法: stats.sh
 
-get_state_dir() { [ -n "$OPENCLAW_STATE_DIR" ] && echo "$OPENCLAW_STATE_DIR" || echo "$HOME/.openclaw"; }
-STATE_DIR=$(get_state_dir)
-SHARED_DIR="$STATE_DIR/.learnings"
+SHARED_DIR="$HOME/.openclaw/.learnings"
 ERRORS_FILE="$SHARED_DIR/experiences.md"
 
 echo "╔══════════════════════════════════════════╗"
