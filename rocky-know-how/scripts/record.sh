@@ -182,6 +182,11 @@ fi
 echo "$ENTRY" >> "$ERRORS_FILE"
 echo "✅ 已写入经验诀窍: ${ID} [${AREA}]"
 
+# LRU 淘汰检查（超过1000条自动清理）
+if [ -x "${SCRIPTS_DIR}/_lru_cleanup.py" ]; then
+    python3 "${SCRIPTS_DIR}/_lru_cleanup.py" "$CACHE_FILE" 1000 2>/dev/null
+fi
+
 # 同步写入 memory/*.md
 WORKSPACE=$(get_workspace)
 MEMORY_DIR="$WORKSPACE/memory"

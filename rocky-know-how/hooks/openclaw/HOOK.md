@@ -1,62 +1,62 @@
 ---
 name: rocky-know-how
-description: "经验诀窍技能 — 失败≥2次自动搜经验诀窍，解决后写入"
-metadata: {"openclaw":{"emoji":"📚","events":["agent:bootstrap"]}}
+description: "经验诀窍技能 — 失败≥2次自动搜经验诀窍，解决后写入，支持全自动提取"
+metadata:
+  {
+    "openclaw":
+      {
+        "emoji": "📚",
+        "events": ["agent:bootstrap", "message:received"],
+      },
+  }
 ---
 
-# rocky-know-how Hook v1.3.6
+# rocky-know-how Hook v1.4.1
 
-Agent 启动时自动注入经验诀窍提醒到 bootstrap 上下文。
+Agent 启动时自动注入经验诀窍技能提醒，Agent 接收消息时自动记录任务输入。
+
+## 核心原则
+
+**遇到问题 → 搜经验 → 解决 → 记录 → 优化**
 
 ## 功能
 
-- **自动注入** — agent:bootstrap 事件触发
-- **动态工作区** — 自动从 sessionKey 推导 workspace 路径
+- **失败自动搜** — agent:bootstrap 注入指令，失败≥2次时立即搜索经验
+- **成功自动记** — 任务成功后立即调用 record.sh 记录经验
+- **经验使用后自动评估** — 使用经验解决问题后，主动询问用户是否需要补充优化
+- **自动记录** — message:received 事件触发，记录用户输入到 pending 队列
+- **动态工作区** — 自动从 sessionKey 推导工作区路径
 - **跨 workspace** — 支持 shared 目录和全局安装
-- **数据检测** — 自动检测经验数据是否存在
-- **子agent跳过** — 避免重复注入
-- **虚拟文件** — 不污染工作区文件
 
 ## 工作流程
 
 ```
-1. agent:bootstrap 事件触发
-2. 从 sessionKey 提取 agentId
-3. 推导 workspace: ~/.openclaw/workspace-{agentId}
-4. 动态搜索 scripts 目录（支持多种安装路径）
-5. 检测经验数据状态
-6. 注入 ROCKY_KNOW_HOW_REMINDER.md 虚拟文件
-7. Agent 收到包含使用规则的上下文
+1. agent:bootstrap 事件
+   → 注入经验诀窍使用提醒到 bootstrapFiles
+   → 提醒核心原则：遇到问题 → 搜经验 → 解决 → 记录 → 优化
+
+2. Agent 处理任务
+   → 失败≥2次 → 立即执行 search.sh 搜索经验
+   → 成功后 → 立即执行 record.sh 写入经验
+   → 使用经验后 → 主动询问用户是否需要补充优化
+
+3. message:received 事件
+   → 记录用户输入到 pending 队列
+
+4. 定时（每天）或手动
+   → 运行 auto-extract.sh 提取经验到 experiences.md
 ```
 
-## v1.3.6 更新
+## 脚本命令
 
-- 搜索支持 --tag / --area / 相关度排序
-- record.sh 支持 --dry-run
-- 新增 import.sh / archive.sh --auto 说明
-- 跨 workspace 共享优化
-- Dreaming 整合标记
+- search.sh — 搜索经验
+- record.sh — 记录新经验
+- update.sh — 更新/优化现有经验
+- stats.sh — 统计面板
+- auto-extract.sh — 从 pending 提取经验
 
-## 启用方式
+## v1.4.1 更新
 
-在 `openclaw.json` 中配置：
-
-```json
-{
-  "hooks": {
-    "internal": {
-      "enabled": true,
-      "load": {
-        "extraDirs": [
-          "/path/to/rocky-know-how/hooks"
-        ]
-      }
-    }
-  }
-}
-```
-
-## 文件说明
-
-- `handler.js` — 运行时 Hook 处理器（CommonJS，兼容所有 Node 版本）
-- `HOOK.md` — 本文档
+- 新增：经验使用后自动评估机制
+- 增强 bootstrap 提醒：模型驱动，更明确的自动执行指令
+- 新增 update.sh 脚本：支持更新/优化现有经验

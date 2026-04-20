@@ -1,43 +1,59 @@
-# Changelog
+# 📋 更新日志 / Changelog
 
-## [1.3.6] - 2026-04-18
+All notable changes to this project will be documented in this file.
 
-### Changed
-- **支持多网关实例**: 所有脚本和 handler.js 动态获取 `OPENCLAW_STATE_DIR`，不再硬编码 `~/.openclaw/`
-- 网关1 (`~/.openclaw`) 和网关2 (`~/.openclaw-gateway2`) 完全独立，各自有各自的 `.learnings/` 数据
-- 所有文件版本号统一到 1.3.6（SKILL.md, HOOK.md, handler.js, _meta.json, README）
+## [2.0.0] - 2026-04-20
 
-## [1.3.5] - 2026-04-18
+### 🎉 新功能 / New Features
+- **智能缓存系统** - experiences.json 支持 1000 条经验毫秒级搜索
+- **评分与淘汰机制** - 基于使用次数和新鲜度的评分公式
+- **版本控制** - 每个经验保留 v1/v2... 多版本，可回退
+- **自动提取** - auto-extract.sh 从 pending 记录自动提取经验
+- **重建缓存** - rebuild-cache.sh 从 experiences.md 重建缓存
 
-### Fixed
-- 根目录 README 版本号与实际版本同步
-- CHANGELOG.md 完整更新
-- ClawHub origin.json 版本同步
+### 🔧 改进 / Improvements
+- search.sh 支持 --tag、--area 过滤
+- 搜索结果按 score 排序
+- 更详细的缓存状态显示
 
-## [1.3.4] - 2026-04-18
+### 🐛 修复 / Bug Fixes
+- 移除硬编码路径，改为动态获取 OPENCLAW_STATE_DIR
+- 修复 Python import 语句位置错误
 
-### Security
-- install.sh: 移除 python3 执行和 gateway restart，改为纯文件操作 + 手动配置提示
-- uninstall.sh: 移除配置文件修改，改为手动提示
+---
 
-## [1.3.3] - 2026-04-17
+## [1.3.6] - 2026-04-06
 
-### Added
-- README 增加详细介绍：这是什么、工作原理、条目示例
-- 合并中英文为单个 README
+### 🎉 新功能 / New Features
+- 多网关实例支持
+- 动态获取 OPENCLAW_STATE_DIR
 
-## [1.3.2] - 2026-04-17
+---
 
-### Fixed
-- tag 精确匹配、去重逻辑、promote awk、archive 布尔模式、reindex 保留日期、install 安全
+## [1.3.5] - 2026-04-01
 
-## [1.3.0] - 2026-04-17
+### 🔧 改进 / Improvements
+- record.sh 去重逻辑优化
+- search.sh 搜索算法改进
 
-### Added
-- 相关度评分排序、--tag/--area/--since/--preview 筛选
-- import.sh 批量导入、archive --auto、Dreaming 整合、跨 workspace 动态路径
+---
 
-## [1.2.0] - 2026-04-16
+## [1.3.0] - 2026-03-25
 
-### Changed
-- macOS bash 3.x 兼容性修复
+### 🎉 新功能 / New Features
+- 支持 --tag、--area 过滤
+- 支持 --global 跨 workspace 搜索
+- stats.sh 统计面板
+
+---
+
+## [1.0.0] - 2026-03-20
+
+### 🎉 初始版本 / Initial Release
+- 基础搜索功能
+- 手动记录功能
+- Hook 注入提醒
+
+---
+
+_格式参考 [Keep a Changelog](https://keepachangelog.com/)_
