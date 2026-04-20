@@ -139,6 +139,41 @@ ${solution}
         if [ -n "$script_path" ] && [ -f "$script_path" ]; then
           script_name=$(basename "$script_path" .sh)
           echo "  -> 脚本: $script_name ✓"
+          
+          # 更新experiences.json，添加script字段
+          update_exp_json() {
+            local exp_file="$STATE_DIR/.learnings/experiences.json"
+            if [ -f "$exp_file" ]; then
+              python3 << PYEOF
+import json
+
+exp_id = "$exp_id"
+script = "$script_path"
+script_name = "$script_name"
+script_type = "$script_type"
+
+exp_file = "$exp_file"
+
+try:
+    with open(exp_file, 'r') as f:
+        data = json.load(f)
+    
+    entries = data.get('entries', data.get('experiences', {}))
+    if isinstance(entries, dict) and exp_id in entries:
+        entries[exp_id]['script'] = script
+        entries[exp_id]['scriptName'] = script_name
+        entries[exp_id]['scriptType'] = script_type
+        with open(exp_file, 'w') as f:
+            json.dump(data, f, ensure_ascii=False, indent=2)
+        print(f"updated: {exp_id} -> {script_name}")
+    else:
+        print(f"not found: {exp_id}")
+except Exception as e:
+    print(f"error: {e}")
+PYEOF
+            fi
+          }
+          update_exp_json
         fi
       fi
       
