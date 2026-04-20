@@ -77,7 +77,8 @@ for file in "$PENDING_DIR"/lesson_*.json; do
   timestamp=$(echo "$record" | python3 -c "import sys,json; d=json.load(sys.stdin); print(d.get('timestamp',''))" 2>/dev/null || echo "")
   
   # 只处理有意义的outcome
-  if [ "$outcome" = "success" ] || [ "$outcome" = "solved_after_failure" ]; then
+  # 支持: success, solved_after_failure, ai_judged
+  if [ "$outcome" = "success" ] || [ "$outcome" = "solved_after_failure" ] || [ "$outcome" = "ai_judged" ]; then
     if [ -n "$message" ] && [ ${#message} -gt 10 ]; then
       # 简单分类
       area="infra"
