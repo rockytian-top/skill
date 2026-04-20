@@ -1,9 +1,47 @@
 #!/bin/bash
-# rocky-know-how 搜索 v2.1
-# Hybrid 搜索：向量 + BM25
+# rocky-know-how 搜索 v3.0
+# Hybrid 搜索：向量 + BM25 + 语义理解
 # 用法: search.sh [选项] <关键词...>
 
-VERSION="2.1"
+VERSION="3.0"
+
+# 编译C核心（如果需要）
+compile_bm25_core() {
+  if [ ! -f "$BM25_CORE" ]; then
+    local src="$STATE_DIR/skills/rocky-know-how/scripts/_bm25.c"
+    if [ -f "$src" ]; then
+      gcc -O3 -o "$BM25_CORE" "$src" -lm 2>/dev/null
+    fi
+  fi
+}
+
+# C加速BM25搜索
+bm25_search() {
+  local keyword="$1"
+  local max_results="$2"
+  
+  compile_bm25_core
+  
+  if [ ! -f "$BM25_CORE" ]; then
+    return 1
+  fi
+  
+  # 提取所有文档文本
+  python3 - "$CACHE_FILE" << 'PYEOF'
+import json
+import sys
+
+cache_file = sys.argv[1]
+with open(cache_file, 'r') as f:
+    cache = json.load(f)
+
+entries = cache.get('entries', {})
+for exp_id, entry in entries.items():
+    prob = entry.get('problem', '')
+    sol = entry.get('solution', '')
+    print(prob + ' ' + sol)
+PYEOF
+}
 
 # 默认值
 MAX_RESULTS=10

@@ -2,6 +2,27 @@
 
 All notable changes to this project will be documented in this file.
 
+## [3.0] - 2026-04-20
+
+### 🎉 新功能 / New Features
+- **AI自动判断** - ai_judge.py 判断内容是否值得记录
+- **决策记录** - decision.sh 记录重大决策和原因
+- **自动关联** - auto_link.sh 新经验自动关联已有知识
+- **语义搜索增强** - semantic_search.py 理解用户查询意图
+
+### 🔧 改进 / Improvements
+- 搜索支持意图识别
+- 新经验自动关联相关已有知识
+- 支持按决策类型筛选
+
+### 📦 新增脚本
+- `ai_judge.py` - AI判断模块
+- `decision.sh` - 决策记录管理
+- `auto_link.sh` - 自动关联知识
+- `semantic_search.py` - 语义搜索增强
+
+---
+
 ## [2.5] - 2026-04-20
 
 ### 🎉 新功能 / New Features
