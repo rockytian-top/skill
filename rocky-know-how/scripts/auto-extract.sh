@@ -118,6 +118,29 @@ ${solution}
 ---
 "
       
+      # 自动生成脚本
+      script_type="generic"
+      if echo "$message" | grep -qi "ssh\|连接超时\|端口"; then
+        script_type="ssh"
+      elif echo "$message" | grep -qi "mysql\|数据库\|sql"; then
+        script_type="mysql"
+      elif echo "$message" | grep -qi "内存\|cpu\|负载\|系统"; then
+        script_type="system"
+      elif echo "$message" | grep -qi "部署\|发布\|deploy"; then
+        script_type="deploy"
+      fi
+      
+      # 调用generate.sh生成脚本
+      script_name=""
+      if [ -f "$SKILL_DIR/generate.sh" ]; then
+        script_result=$(bash "$SKILL_DIR/generate.sh" "$solution" --type "$script_type" --name "exp-$(echo $exp_id | sed 's/-//g')" 2>&1) || true
+        script_path=$(echo "$script_result" | grep "脚本已保存:" | sed 's/.*脚本已保存: //' || echo "")
+        if [ -n "$script_path" ] && [ -f "$script_path" ]; then
+          script_name=$(basename "$script_path" .sh)
+          echo "  -> 脚本: $script_name ✓"
+        fi
+      fi
+      
       if [ "$DRY_RUN" = true ]; then
         echo "[Dry Run] 会写入:"
         echo "$entry"
