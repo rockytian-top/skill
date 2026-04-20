@@ -417,7 +417,7 @@ function tryAutoFix(scriptsDir, stateDir, message) {
       return;
     }
     
-    // BM25搜索
+    // BM25搜索找top3
     const bm25Result = execSync(
       `python3 -c "
 import json
@@ -431,41 +431,137 @@ with open('${expFile}', 'r') as f:
     data = json.load(f)
 
 entries = data.get('entries', {})
-best = None
-best_score = 0
+candidates = []
 
 for exp_id, exp in entries.items():
     text = (exp.get('problem', '') + ' ' + exp.get('solution', '')).lower()
     score = sum(1 for w in words if w.lower() in text)
-    if score > best_score and exp.get('script'):
-        best_score = score
-        best = exp_id
+    if score > 0 and exp.get('script'):
+        candidates.append({'id': exp_id, 'score': score, 'problem': exp.get('problem', ''), 'script': exp.get('script', ''), 'solution': exp.get('solution', '')})
 
-if best:
-    print(best + '|' + entries[best].get('script', ''))
+candidates.sort(key=lambda x: x['score'], reverse=True)
+for c in candidates[:3]:
+    print(c['id'] + '|' + str(c['score']) + '|' + c['problem'] + '|' + c['solution'] + '|' + c['script'])
 " 2>/dev/null || echo ""`,
       {encoding: 'utf8', timeout: 10000}
     ).trim();
     
-    debugLog("AUTO_FIX_BM25: " + bm25Result.substring(0, 60));
+    debugLog("AUTO_FIX_CANDIDATES: " + bm25Result.substring(0, 100));
     
-    if (bm25Result && bm25Result.includes('|')) {
-      const [expId, scriptPath] = bm25Result.split('|');
-      if (scriptPath && existsSync(scriptPath)) {
-        debugLog("AUTO_FIX_EXEC: " + expId + " -> " + scriptPath);
-        require('child_process').exec(
-          `bash "${scriptPath}"`,
-          {encoding: 'utf8', timeout: 30000},
-          (err, stdout, stderr) => {
-            if (err) {
-              debugLog("AUTO_FIX_ERROR: " + err.message.substring(0, 50));
-            } else {
-              debugLog("AUTO_FIX_DONE: " + expId);
-            }
-          }
-        );
+    if (!bm25Result) {
+      debugLog("AUTO_FIX_NO_MATCH");
+      return;
+    }
+    
+    // 用AI判断哪个最相关
+    const aiJudgeResult = execSync(
+      `python3 -c "
+import subprocess
+import json
+
+user_msg = '''${message.replace(/'''/g, "'\"'\"'")}'''
+candidates_text = '''${bm25Result.replace(/'/g, "'\\''")}'''
+
+prompt = f'''用户问题：{user_msg}
+
+候选经验：
+{candidates_text}
+
+请判断哪个经验最匹配用户问题。
+只输出经验ID和匹配度(0-1)，格式：经验ID,匹配度
+只输出一个最匹配的结果。'''
+
+payload = {
+    'model': 'lingshu-7b',
+    'messages': [
+        {'role': 'system', 'content': '你是经验匹配助手。根据用户问题和候选经验，判断匹配度。只输出经验ID和匹配度。'},
+        {'role': 'user', 'content': prompt}
+    ],
+    'temperature': 0.1,
+    'max_tokens': 100
+}
+
+try:
+    result = subprocess.run(
+        ['curl', '-s', '-X', 'POST', 'http://localhost:1234/v1/chat/completions',
+         '-H', 'Content-Type: application/json',
+         '-d', json.dumps(payload)],
+        capture_output=True, text=True, timeout=30
+    )
+    data = json.loads(result.stdout)
+    content = data.get('choices', [{}])[0].get('message', {}).get('content', '')
+    print(content.strip())
+except:
+    print('')
+" 2>/dev/null || echo ""`,
+      {encoding: 'utf8', timeout: 15000}
+    ).trim();
+    
+    debugLog("AUTO_FIX_AI_JUDGE: " + aiJudgeResult.substring(0, 50));
+    
+    // 解析AI结果
+    const lines = bm25Result.split('\n');
+    let bestMatch = null;
+    let bestScore = 0;
+    
+    for (const line of lines) {
+      const parts = line.split('|');
+      if (parts.length >= 5) {
+        const [expId, bm25Score, problem, solution, script] = parts;
+        const score = parseInt(bm25Score) || 0;
+        if (score > bestScore) {
+          bestScore = score;
+          bestMatch = {expId, problem, solution, script};
+        }
       }
+    }
+    
+    // 检查AI判断是否相关（匹配度>0.3）
+    const aiMatch = aiJudgeResult.match(/EXP-[\d-]+/);
+    const aiScore = parseFloat(aiJudgeResult.match(/[\d.]+$/)?.[0] || '0');
+    
+    if (aiMatch && aiScore > 0.3) {
+      // 用AI匹配的结果
+      const matchedLine = lines.find(l => l.startsWith(aiMatch[0]));
+      if (matchedLine) {
+        const parts = matchedLine.split('|');
+        if (parts.length >= 5) {
+          const [, , , , scriptPath] = parts;
+          debugLog("AUTO_FIX_EXEC: " + aiMatch[0] + " (AI匹配)");
+          require('child_process').exec(
+            `bash "${scriptPath}"`,
+            {encoding: 'utf8', timeout: 30000},
+            (err, stdout, stderr) => {
+              if (err) {
+                debugLog("AUTO_FIX_ERROR: " + err.message.substring(0, 50));
+              } else {
+                debugLog("AUTO_FIX_DONE: " + aiMatch[0]);
+              }
+            }
+          );
+        }
+      }
+    } else if (bestMatch && bestScore >= 2) {
+      // BM25分数>=2且没有AI高置信结果，执行
+      debugLog("AUTO_FIX_EXEC: " + bestMatch.expId + " (BM25)");
+      require('child_process').exec(
+        `bash "${bestMatch.script}"`,
+        {encoding: 'utf8', timeout: 30000},
+        (err, stdout, stderr) => {
+          if (err) {
+            debugLog("AUTO_FIX_ERROR: " + err.message.substring(0, 50));
+          } else {
+            debugLog("AUTO_FIX_DONE: " + bestMatch.expId);
+          }
+        }
+      );
     } else {
+      debugLog("AUTO_FIX_NO_CONFIDENT_MATCH");
+    }
+  } catch (e) {
+    debugLog("AUTO_FIX_ERROR: " + (e.message || '').substring(0, 50));
+  }
+}
       debugLog("AUTO_FIX_NO_MATCH");
     }
   } catch (e) {
