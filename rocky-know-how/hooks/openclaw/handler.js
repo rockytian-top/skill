@@ -410,57 +410,65 @@ function tryAutoFix(scriptsDir, stateDir, message) {
   try {
     debugLog("AUTO_FIX_START: " + message.substring(0, 30));
     
-    const scriptSh = join(scriptsDir, 'script.sh');
-    if (!existsSync(scriptSh)) {
-      debugLog("AUTO_FIX_SKIP: script.sh not found");
+    // 使用BM25搜索experiences.json
+    const expFile = join(stateDir, '.learnings', 'experiences.json');
+    if (!existsSync(expFile)) {
+      debugLog("AUTO_FIX_SKIP: no experiences.json");
       return;
     }
     
-    // 提取关键词进行搜索（问题描述中可能有连接词）
-    const keywords = message.replace(/连接|了|啊|呀|哦|哈/g, ' ').trim();
-    const searchCmd = `bash "${scriptSh}" search "${keywords.replace(/"/g, '\\"').substring(0, 50)}" 2>/dev/null || echo ""`;
-    debugLog("AUTO_FIX_CMD: " + searchCmd.substring(0, 80));
+    // BM25搜索
+    const bm25Result = execSync(
+      `python3 -c "
+import json
+import re
+
+keyword = '''${message.replace(/'''/g, "'\"'\"'")}'''
+words = re.split(r'[\\s,，]+', keyword)
+words = [w for w in words if len(w) >= 2]
+
+with open('${expFile}', 'r') as f:
+    data = json.load(f)
+
+entries = data.get('entries', {})
+best = None
+best_score = 0
+
+for exp_id, exp in entries.items():
+    text = (exp.get('problem', '') + ' ' + exp.get('solution', '')).lower()
+    score = sum(1 for w in words if w.lower() in text)
+    if score > best_score and exp.get('script'):
+        best_score = score
+        best = exp_id
+
+if best:
+    print(best + '|' + entries[best].get('script', ''))
+" 2>/dev/null || echo ""`,
+      {encoding: 'utf8', timeout: 10000}
+    ).trim();
     
-    const searchResult = execSync(searchCmd, {encoding: 'utf8', timeout: 10000});
-    debugLog("AUTO_FIX_RESULT: " + (searchResult || 'empty').substring(0, 80));
+    debugLog("AUTO_FIX_BM25: " + bm25Result.substring(0, 60));
     
-    // 查找有脚本的经验ID
-    const expMatch = searchResult.match(/EXP-[\d-]+/);
-    if (expMatch) {
-      const expId = expMatch[0];
-      debugLog("AUTO_FIX_FOUND: " + expId);
-      
-      // 检查经验是否有脚本
-      const expFile = join(stateDir, '.learnings', 'experiences.json');
-      if (existsSync(expFile)) {
-        const expData = require('fs').readFileSync(expFile, 'utf8');
-        const expJson = JSON.parse(expData);
-        const entries = expJson.entries || expJson.experiences || {};
-        const exp = entries[expId];
-        
-        if (exp && exp.script) {
-          debugLog("AUTO_FIX_EXEC: " + expId + " -> " + exp.script);
-          // 执行脚本（异步，不阻塞主流程）
-          require('child_process').exec(
-            `bash "${exp.script}"`,
-            {encoding: 'utf8', timeout: 30000},
-            (err, stdout, stderr) => {
-              if (err) {
-                debugLog("AUTO_FIX_ERROR: " + err.message.substring(0, 50));
-              } else {
-                debugLog("AUTO_FIX_DONE: " + expId);
-              }
+    if (bm25Result && bm25Result.includes('|')) {
+      const [expId, scriptPath] = bm25Result.split('|');
+      if (scriptPath && existsSync(scriptPath)) {
+        debugLog("AUTO_FIX_EXEC: " + expId + " -> " + scriptPath);
+        require('child_process').exec(
+          `bash "${scriptPath}"`,
+          {encoding: 'utf8', timeout: 30000},
+          (err, stdout, stderr) => {
+            if (err) {
+              debugLog("AUTO_FIX_ERROR: " + err.message.substring(0, 50));
+            } else {
+              debugLog("AUTO_FIX_DONE: " + expId);
             }
-          );
-        } else {
-          debugLog("AUTO_FIX_NO_SCRIPT: " + expId);
-        }
+          }
+        );
       }
     } else {
       debugLog("AUTO_FIX_NO_MATCH");
     }
   } catch (e) {
-    // 静默失败
     debugLog("AUTO_FIX_ERROR: " + (e.message || '').substring(0, 50));
   }
 }
