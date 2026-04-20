@@ -218,6 +218,50 @@ function debugLog(msg) {
   fs.appendFileSync(logFile, new Date().toISOString() + ' ' + msg + '\n');
 }
 
+/**
+ * 调用 AI 判断是否值得记录
+ */
+function callAiJudge(scriptsDir, message, context) {
+  try {
+    const result = execSync(
+      `python3 "${scriptsDir}/ai_judge.py" "${message.replace(/"/g, '\\"')}" "${(context || '').replace(/"/g, '\\"')}"`,
+      { timeout: 30000, encoding: 'utf8' }
+    );
+    return JSON.parse(result);
+  } catch (e) {
+    debugLog("AI_JUDGE_ERROR: " + (e.message || '').substring(0, 100));
+    return null;
+  }
+}
+
+/**
+ * 写入 AI 判断后的待处理记录
+ */
+function writeAiJudgePending(stateDir, sessionKey, judgeResult, message) {
+  const pendingDir = join(stateDir, '.learnings', 'pending');
+  mkdirSync(pendingDir, { recursive: true });
+  
+  const filename = `lesson_ai_${Date.now()}.json`;
+  const filepath = join(pendingDir, filename);
+  
+  const record = {
+    id: `PENDING-AI-${Date.now()}`,
+    sessionKey,
+    timestamp: new Date().toISOString(),
+    outcome: 'ai_judged',
+    message: message.substring(0, 500),
+    judgeResult, // AI判断结果
+    processed: false
+  };
+  
+  try {
+    appendFileSync(filepath, JSON.stringify(record, null, 2) + '\n');
+    debugLog("AI_JUDGE_PENDING_WRITTEN: " + judgeResult.type);
+  } catch (e) {
+    debugLog("AI_JUDGE_WRITE_ERROR: " + e.message);
+  }
+}
+
 const handler = async (event) => {
   // 全事件日志（调试用）
   debugLog("EVENT: " + JSON.stringify({type: event.type, action: event.action, sessionKey: event.sessionKey, contextKeys: event.context ? Object.keys(event.context) : []}));
@@ -317,11 +361,96 @@ bash ${scriptsDir}/record.sh "问题描述" "失败过程" "解决方案" "预�
   }
   
   // === MESSAGE:RECEIVED 事件 ===
-  // 不再自动记录到 pending，只做日志
+  // 调用 AI 判断是否值得记录
   if (event.type === 'message' && event.action === 'received') {
-    debugLog("MESSAGE_RECEIVED: " + (event.context?.content || '').substring(0, 50));
+    const message = event.context?.content || '';
+    debugLog("MESSAGE_RECEIVED: " + message.substring(0, 50));
+    
+    // 跳过太短的消息
+    if (message.length < 10) return;
+    
+    // 调用 AI 判断
+    const judgeResult = callAiJudge(scriptsDir, message, '');
+    
+    if (judgeResult && judgeResult.worthy) {
+      debugLog("AI_JUDGE_RESULT: worthy=true type=" + judgeResult.type + " confidence=" + judgeResult.confidence);
+      
+      // 根据类型分别处理
+      if (judgeResult.type === 'decision') {
+        // 决策类型：写入 decisions.md
+        try {
+          const decisionScript = join(scriptsDir, 'decision.sh');
+          if (existsSync(decisionScript)) {
+            execSync(`bash "${decisionScript}" add "${message.substring(0, 100)}" '[]' "${(judgeResult.summary || message).substring(0, 200)}" "AI判断值得记录" "auto"`);
+            debugLog("DECISION_WRITTEN: " + message.substring(0, 30));
+          }
+        } catch (e) {
+          debugLog("DECISION_WRITE_ERROR: " + (e.message || '').substring(0, 50));
+        }
+      } else if (judgeResult.type === 'experience') {
+        // 经验类型：写入 pending
+        writeAiJudgePending(stateDir, sessionKey, judgeResult, message);
+      }
+    } else if (judgeResult) {
+      debugLog("AI_JUDGE_RESULT: worthy=false reason=" + (judgeResult.reason || '').substring(0, 30));
+    }
+    
+    // === 问题自动解决：搜索经验并执行脚本 ===
+    // 检测是否为问题描述
+    const isProblem = /错误|坏了|挂了|超时|失败|不能用了|故障|502|500|404/.test(message);
+    if (isProblem && message.length > 5) {
+      tryAutoFix(scriptsDir, stateDir, message);
+    }
   }
 };
+
+/**
+ * 尝试自动修复：搜索经验，找到则执行脚本
+ */
+function tryAutoFix(scriptsDir, stateDir, message) {
+  try {
+    const scriptSh = join(scriptsDir, 'script.sh');
+    if (!existsSync(scriptSh)) return;
+    
+    // 搜索相关经验
+    const searchResult = execSync(`bash "${scriptSh}" search "${message.substring(0, 50)}" 2>/dev/null || echo ""`, {encoding: 'utf8', timeout: 10000});
+    
+    // 查找有脚本的经验ID
+    const expMatch = searchResult.match(/EXP-[\d-]+/);
+    if (expMatch) {
+      const expId = expMatch[0];
+      debugLog("AUTO_FIX_FOUND: " + expId);
+      
+      // 检查经验是否有脚本
+      const expFile = join(stateDir, '.learnings', 'experiences.json');
+      if (existsSync(expFile)) {
+        const expData = require('fs').readFileSync(expFile, 'utf8');
+        const expJson = JSON.parse(expData);
+        const entries = expJson.entries || expJson.experiences || {};
+        const exp = entries[expId];
+        
+        if (exp && exp.script) {
+          debugLog("AUTO_FIX_EXEC: " + expId + " -> " + exp.script);
+          // 执行脚本（异步，不阻塞主流程）
+          require('child_process').exec(
+            `bash "${exp.script}"`,
+            {encoding: 'utf8', timeout: 30000},
+            (err, stdout, stderr) => {
+              if (err) {
+                debugLog("AUTO_FIX_ERROR: " + err.message.substring(0, 50));
+              } else {
+                debugLog("AUTO_FIX_DONE: " + expId);
+              }
+            }
+          );
+        }
+      }
+    }
+  } catch (e) {
+    // 静默失败
+    debugLog("AUTO_FIX_SKIP: " + (e.message || '').substring(0, 30));
+  }
+}
 
 module.exports = handler;
 module.exports.default = handler;
