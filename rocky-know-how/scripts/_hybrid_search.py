@@ -14,13 +14,63 @@ import re
 import subprocess
 from collections import Counter
 
-VECTOR_SCRIPT = '/Users/rocky/.openclaw-gateway2/skills/rocky-know-how/scripts/_vector.sh'
-BM25_CORE = '/Users/rocky/.openclaw-gateway2/skills/rocky-know-how/scripts/_bm25'
+import os
+import sys
+import platform
+
+# 动态获取脚本目录
+SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
+
+# 向量脚本
+VECTOR_SCRIPT = os.path.join(SCRIPT_DIR, '_vector.sh')
+
+# BM25核心 - 根据平台检测
+def find_bm25_core():
+    """根据平台查找BM25二进制"""
+    system = platform.system()
+    
+    # 可能的核心名称
+    candidates = []
+    if system == 'Darwin':
+        candidates = ['_bm25']
+    elif system == 'Linux':
+        candidates = ['_bm25']
+    elif system == 'Windows' or 'MINGW' in system or 'MSYS' in system:
+        candidates = ['_bm25.exe', '_bm25']
+    else:
+        candidates = ['_bm25']
+    
+    for name in candidates:
+        path = os.path.join(SCRIPT_DIR, name)
+        if os.path.isfile(path) and os.access(path, os.X_OK):
+            return path
+    
+    # 如果没找到可执行文件，尝试编译
+    build_script = os.path.join(SCRIPT_DIR, 'build_bm25.sh')
+    if os.path.isfile(build_script):
+        import subprocess
+        try:
+            print(f"编译BM25核心 for {system}...", file=sys.stderr)
+            subprocess.run(['bash', build_script], check=True, capture_output=True)
+            # 重新检测
+            for name in candidates:
+                path = os.path.join(SCRIPT_DIR, name)
+                if os.path.isfile(path) and os.access(path, os.X_OK):
+                    return path
+        except:
+            pass
+    
+    return None
+
+BM25_CORE = find_bm25_core()
 
 # ============== C语言BM25加速 ==============
 
 def bm25_search_c(doc_texts, query):
     """使用C核心进行BM25搜索"""
+    if BM25_CORE is None:
+        return None, "BM25核心未找到"
+    
     try:
         # 准备输入
         input_data = '\n'.join(doc_texts)
