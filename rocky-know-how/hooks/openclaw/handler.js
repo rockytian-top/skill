@@ -240,7 +240,7 @@ async function handler(event) {
   debugLog("=== MESSAGE: " + message.substring(0, 50));
   debugLog("USER: " + userId);
 
-  if (message.length < 3) return;
+  if (message.length < 2) return;
 
   try {
     // 获取用户画像
@@ -334,30 +334,30 @@ ${script.content}
     if (CONFIRM_PATTERNS.test(message) && profile.currentScript) {
       debugLog("PHASE3: 用户确认脚本");
       
-      // 执行脚本
-      try {
-        const result = execSync(`bash "${profile.currentScript.path}"`, { encoding: 'utf8', timeout: 30000 });
-        debugLog("SCRIPT_EXECUTED: " + result.substring(0, 50));
-        
-        // 记录成功
-        if (!profile.commonTasks.includes(profile.currentScript.originalIntent)) {
-          profile.commonTasks.push(profile.currentScript.originalIntent);
-        }
-        profile.lastSuccess = new Date().toISOString();
-        profile.currentScript = null;
-        profile.pendingIntent = null;
-        saveUserProfile(profile);
-
-        const injection = `# 脚本执行成功
-结果:
-${result}
-
-用户确认通过，已保存。`;
-
-        injectContent(event, 'SUCCESS.md', injection);
-      } catch (e) {
-        debugLog("SCRIPT_ERROR: " + e.message.substring(0, 50));
+      // 读取脚本内容（不执行）
+      const scriptContent = readFileSync(profile.currentScript.path, 'utf8');
+      
+      // 记录成功
+      if (!profile.commonTasks.includes(profile.currentScript.originalIntent)) {
+        profile.commonTasks.push(profile.currentScript.originalIntent);
       }
+      profile.lastSuccess = new Date().toISOString();
+      profile.currentScript.confirmed = true;
+      saveUserProfile(profile);
+
+      // 构建注入内容
+      const injPath = 'SCRIPT_CONFIRMED.md';
+      const injContent = '脚本已确认保存\n' +
+        '脚本路径: ' + profile.currentScript.path + '\n\n' +
+        '内容:\n```bash\n' + scriptContent + '\n```\n\n' +
+        '脚本已保存备用。';
+      injectContent(event, injPath, injContent);
+      
+      // 清理
+      profile.currentScript = null;
+      profile.pendingIntent = null;
+      saveUserProfile(profile);
+      debugLog("PHASE3_COMPLETE: script saved");
       return;
     }
 
