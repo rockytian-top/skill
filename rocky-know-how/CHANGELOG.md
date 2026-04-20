@@ -2,6 +2,24 @@
 
 All notable changes to this project will be documented in this file.
 
+## [2.5] - 2026-04-20
+
+### 🎉 新功能 / New Features
+- **Hybrid搜索** - 向量搜索(40%) + BM25关键词搜索(60%)
+- **纯Python实现** - 跨平台兼容，Windows/Linux/Mac全部支持
+
+### 🔧 改进 / Improvements
+- 向量搜索支持语义匹配
+- BM25支持中英文混合分词
+- 简化代码，去除不必要的C扩展
+
+### 📦 脚本更新
+- `_hybrid_search.py` - Hybrid搜索核心
+- `_vector.sh` - 向量计算脚本
+- `_lru_cleanup.py` - LRU缓存清理
+
+---
+
 ## [2.0.0] - 2026-04-20
 
 ### 🎉 新功能 / New Features
