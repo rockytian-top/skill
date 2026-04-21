@@ -1,6 +1,8 @@
-# 📦 rocky-know-how
+# 📦 rocky-know-how v2.1.0
 
 > 经验诀窍技能 — 失败自动搜，解决自动写
+
+**新增：向量语义搜索（LM Studio embedding）+ 优雅降级（无模型自动回退 grep）**
 
 [English](#english) | [中文](#中文)
 
@@ -19,8 +21,8 @@
 | 功能 | 脚本 | 说明 |
 |------|------|------|
 | 搜索经验 | `search.sh` | 关键词/tag/域名/项目多维搜索 + **向量语义搜索** |
-| 向量工具 | `lib/vectors.sh` | LM Studio embedding 768维，优雅降级 |
-| 写入经验 | `record.sh` | 踩坑 → 写入，分全局/领域/项目三层 |
+| 向量搜索 | `lib/vectors.sh` | LM Studio embedding 768维，**优雅降级**（无模型自动回退 grep） |
+| 写入经验 | `record.sh` | 踩坑 → 写入，**去重检测** + 参数防御 |
 | 自动晋升 | `promote.sh` | 7天同Tag ≥3次 → 晋升HOT层 |
 | 保守降级 | `demote.sh` | 30天未用 → 降级到WARM |
 | 压缩存储 | `compact.sh` | 按层压缩，控制文件大小 |
