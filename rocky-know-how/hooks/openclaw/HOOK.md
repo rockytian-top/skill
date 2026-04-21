@@ -37,4 +37,6 @@ Agent 启动时自动注入经验诀窍提醒到 bootstrap 上下文。
 
 ## 启用方式
 
-在 `openclaw.json` 的 hooks.internal.load.extraDirs 中添加 hooks 目录路径。
+install.sh 会自动完成配置（添加到 extraDirs），无需手动操作。
+
+如需手动启用，在 openclaw.json 的 hooks.internal.load.extraDirs 中添加本 hooks 目录路径。

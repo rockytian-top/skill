@@ -68,30 +68,16 @@ cd skill/rocky-know-how
 bash scripts/install.sh
 ```
 
-### 每个 Agent 配置 Hook（如需自动提醒）
+### Hook 自动配置 ✅
 
-如果 agent 在对话中需要自动看到"遇到问题先搜经验诀窍"的提醒，需要在对应 gateway 的 openclaw.json 中添加 hook 路径。
-
-以 `fs-daying`（大颖）为例，在 `hooks.internal.load.extraDirs` 中添加：
-
-```json
-{
-  "hooks": {
-    "internal": {
-      "load": {
-        "extraDirs": ["/path/to/rocky-know-how/hooks"]
-      }
-    }
-  }
-}
-```
+install.sh 会自动将 hook 路径添加到 `openclaw.json` 的 `extraDirs`，**无需手动配置**。
 
 配置后重启 gateway：
 ```bash
 openclaw gateway restart
 ```
 
-**不配置 hook 也能用**：agent 可以手动调 `search.sh` 搜索经验，只是不会有自动提醒。
+如需手动配置（不推荐），参考 wiki/Installation.md。
 
 ## 📖 用法
 
