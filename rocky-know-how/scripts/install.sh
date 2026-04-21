@@ -88,6 +88,65 @@ last_heartbeat_result: never
 - none yet
 "
 
+# 自动配置 Hook 到 openclaw.json
+auto_configure_hook() {
+  local oc_json="$STATE_DIR/openclaw.json"
+  local hook_path="$SKILL_DIR/hooks"
+
+  # 检查 openclaw.json 是否存在
+  if [ ! -f "$oc_json" ]; then
+    echo ""
+    echo "⚠️  未找到 openclaw.json ($oc_json)，跳过自动 Hook 配置"
+    echo "   如需配置，请手动添加："
+    return 1
+  fi
+
+  # 用 Python 安全修改 JSON（保留注释和格式）
+  local python_code="
+import json, sys, os, shutil
+
+f = '$oc_json'
+bak = f + '.bak.install-$'
+shutil.copy(f, bak)
+
+try:
+    with open(f, 'r') as fp:
+        data = json.load(fp)
+except Exception as e:
+    print(f'⚠️  JSON 解析失败: {e}，跳过 Hook 配置')
+    sys.exit(1)
+
+hook_path = '$hook_path'
+extra_dirs = data.get('hooks', {}).get('internal', {}).get('load', {}).get('extraDirs', [])
+
+if hook_path in extra_dirs:
+    print('')
+    print('⏭️  Hook 路径已存在: ' + hook_path)
+else:
+    if 'hooks' not in data:
+        data['hooks'] = {}
+    if 'internal' not in data['hooks']:
+        data['hooks']['internal'] = {}
+    if 'load' not in data['hooks']['internal']:
+        data['hooks']['internal']['load'] = {}
+    if 'extraDirs' not in data['hooks']['internal']['load']:
+        data['hooks']['internal']['load']['extraDirs'] = []
+    
+    data['hooks']['internal']['load']['extraDirs'].append(hook_path)
+    
+    with open(f, 'w') as fp:
+        json.dump(data, fp, indent=2, ensure_ascii=False)
+    
+    print('')
+    print('✅ Hook 已自动添加到 openclaw.json:')
+    print('   ' + hook_path)
+    print('   备份: ' + bak)
+"
+
+  python3 -c "$python_code" 2>&1
+  return $?
+}
+
 # 初始化 v1 experiences.md（向后兼容）
 if [ ! -f "$SHARED_DIR/experiences.md" ]; then
   printf "# 经验诀窍\n\n---\n" > "$SHARED_DIR/experiences.md"
@@ -111,24 +170,11 @@ echo "   ├── projects/         (WARM: 项目隔离)"
 echo "   ├── archive/          (COLD: 归档)"
 echo "   └── experiences.md    (v1 向后兼容)"
 echo ""
-echo "⚙️  配置 Hook（需手动完成）"
-echo ""
-echo "请在 openclaw.json 的 hooks.internal.load.extraDirs 中添加："
-echo ""
-echo "  \"$SKILL_DIR/hooks\""
-echo ""
-echo "示例："
-echo '{'
-echo '  "hooks": {'
-echo '    "internal": {'
-echo '      "load": {'
-echo "        \"extraDirs\": [\"$SKILL_DIR/hooks\"]"
-echo '      }'
-echo '    }'
-echo '  }'
-echo '}'
-echo ""
-echo "配置完成后重启 Gateway: openclaw gateway restart"
+
+# 自动配置 Hook
+echo "⚙️  自动配置 Hook..."
+auto_configure_hook
+
 echo ""
 echo "🎉 rocky-know-how v2.0.0 安装完成！"
 echo ""
@@ -136,3 +182,6 @@ echo "  搜索: bash $SKILL_DIR/scripts/search.sh \"关键词\""
 echo "  写入: bash $SKILL_DIR/scripts/record.sh ..."
 echo "  统计: bash $SKILL_DIR/scripts/stats.sh"
 echo "  晋升: bash $SKILL_DIR/scripts/promote.sh"
+echo ""
+echo "⚠️  配置已更新，需要重启 Gateway 使 Hook 生效："
+echo "   openclaw gateway restart"
