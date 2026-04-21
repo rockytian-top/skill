@@ -42,6 +42,20 @@
 
 ## 🚀 安装
 
+### 架构：一套安装，全团队共享
+
+```
+~/.openclaw/.learnings/          ← 数据和脚本，所有 agent 共用一份
+├── experiences.md               ← 经验数据库
+├── memory.md                    ← HOT 层
+├── domains/                    ← 领域隔离
+└── projects/                   ← 项目隔离
+```
+
+**数据只需安装一次**，所有 agent 共享同一份经验库。
+
+**Hook 配置需要每个 agent 单独做**（如果想让 agent 在对话中自动看到"先搜经验"提醒）。
+
 ### ClawHub（推荐）
 ```bash
 openclaw skills install rocky-know-how
@@ -49,10 +63,35 @@ openclaw skills install rocky-know-how
 
 ### 手动安装
 ```bash
-git clone https://github.com/rockytian-top/openclaw-rocky-skills.git
-cd openclaw-rocky-skills/rocky-know-how
+git clone https://github.com/rockytian-top/skill.git
+cd skill/rocky-know-how
 bash scripts/install.sh
 ```
+
+### 每个 Agent 配置 Hook（如需自动提醒）
+
+如果 agent 在对话中需要自动看到"遇到问题先搜经验诀窍"的提醒，需要在对应 gateway 的 openclaw.json 中添加 hook 路径。
+
+以 `fs-daying`（大颖）为例，在 `hooks.internal.load.extraDirs` 中添加：
+
+```json
+{
+  "hooks": {
+    "internal": {
+      "load": {
+        "extraDirs": ["/path/to/rocky-know-how/hooks"]
+      }
+    }
+  }
+}
+```
+
+配置后重启 gateway：
+```bash
+openclaw gateway restart
+```
+
+**不配置 hook 也能用**：agent 可以手动调 `search.sh` 搜索经验，只是不会有自动提醒。
 
 ## 📖 用法
 
