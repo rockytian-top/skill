@@ -3,44 +3,43 @@ name: rocky-know-how
 slug: rocky-know-how
 version: 2.0.0
 homepage: https://clawhub.ai/skills/rocky-know-how
-description: "经验诀窍技能 v2 — 完全对齐 self-improving 架构。失败≥2次自动搜经验诀窍，解决后写入。分层存储（HOT/WARM/COLD）、自动晋升/降级、命名空间隔离、纠正日志、自我反思、心跳整合。"
-changelog: "v2.0.0: 完全重构架构，对齐 self-improving：分层存储、自动晋升/降级、命名空间隔离、纠正日志、自我反思、心跳整合。新增 demote.sh、compact.sh、index.md、reflections.md、corrections.md、boundaries.md、scaling.md。"
-metadata: {"openclaw":{"emoji":"📚","requires":{"bins":[]},"os":["darwin","linux","win32"],"configPaths":["~/.openclaw/.learnings/"]}}
+description: "Learning knowledge skill v2 — Aligns with self-improving. Search learnings when failing 2+ times, write after solving. Layered storage (HOT/WARM/COLD), auto-promotion/demotion, namespace isolation, corrections log, reflections, heartbeat integration."
+changelog: "v2.0.0: Full architecture refactor, aligned with self-improving: layered storage, auto-promotion/demotion, namespace isolation, corrections log, reflections, heartbeat integration. New: demote.sh, compact.sh, index.md, reflections.md, corrections.md, boundaries.md, scaling.md."
+metadata: {"openclaw":{"emoji":"📚","requires":{"bins":[]},"os":["darwin","linux","win32"]}}
 ---
 
-## When to Use
+## When to Use / 何时使用
 
-- 任务失败 ≥2 次 → 搜经验诀窍（search.sh）
-- 解决后 → 写入经验诀窍（record.sh），同步纠正日志
-- 30 天内同 Tag ≥3 次 → 自动晋升 HOT（promote.sh）
-- 任务完成后 → 自我反思（reflections.md）
-- 心跳时 → 保守维护（heartbeat-rules.md）
+- Task failed 2+ times → Search learnings (search.sh) / 任务失败 ≥2 次 → 搜经验诀窍
+- Solved the problem → Write lesson (record.sh) / 解决后 → 写入经验诀窍
+- Same Tag 3x in 30 days → Promote to HOT (promote.sh) / 同 Tag ≥3 次 → 自动晋升 HOT
+- Task completed → Self-reflect (reflections.md) / 任务完成后 → 自我反思
+- On heartbeat → Conservative maintenance (heartbeat-rules.md) / 心跳时 → 保守维护
 
-## Architecture
+## Architecture / 架构说明
 
-经验诀窍存储在 `~/.openclaw/.learnings/`，完全对齐 self-improving 的分层架构：
+**Learnings stored at** `~/.openclaw/.learnings/`, fully aligned with self-improving layered architecture.
+**经验诀窍存储在** `~/.openclaw/.learnings/`，完全对齐 self-improving 的分层架构：
 
 ```
 ~/.openclaw/.learnings/
-├── memory.md           # HOT: ≤100行，始终加载
-├── index.md            # 主题索引（行数统计）
-├── heartbeat-state.md  # 心跳状态
-├── corrections.md      # 纠正日志（最近50条）
-├── reflections.md      # 自我反思日志
-├── domains/            # WARM: 领域隔离（code, infra, dev）
-├── projects/           # WARM: 项目隔离
-└── archive/           # COLD: 归档（显式查询才加载）
+├── memory.md           # HOT: ≤100 lines, always loaded / ≤100行，始终加载
+├── index.md            # Topic index (line counts) / 主题索引
+├── heartbeat-state.md  # Heartbeat state / 心跳状态
+├── corrections.md      # Corrections log (last 50) / 纠正日志（最近50条）
+├── reflections.md      # Self-reflection log / 自我反思日志
+├── domains/            # WARM: domain isolation / 领域隔离
+├── projects/           # WARM: project isolation / 项目隔离
+└── archive/           # COLD: archive / 归档（显式查询才加载）
 
-~/.openclaw/.learnings/experiences.md  # 向后兼容：v1 格式主数据文件
+~/.openclaw/.learnings/experiences.md  # v1 compatibility / v1 向后兼容
 ```
 
-**存储路径**：所有 agent 共用 `~/.openclaw/.learnings/`（跨 agent 共享不变）
+**Storage**: Shared across all agents / 所有 agent 共用 `~/.openclaw/.learnings/`
 
-**向后兼容**：保留 experiences.md（v1 格式），新增 layered 格式存储结构
+## Quick Reference / 快速参考
 
-## Quick Reference
-
-| 主题 | 文件 |
+| Topic / 主题 | File |
 |------|------|
 | 安装指南 | `setup.md` |
 | 心跳状态模板 | `heartbeat-state.md` |
@@ -53,190 +52,177 @@ metadata: {"openclaw":{"emoji":"📚","requires":{"bins":[]},"os":["darwin","lin
 | 记忆操作 | `operations.md` |
 | 自我反思日志 | `reflections.md` |
 
-## Learning Signals
+## Learning Signals / 学习信号
 
-**经验诀窍自动记录** → 追加到 `experiences.md`，同步到 `corrections.md`：
+**Auto-record learnings** → Append to `experiences.md`, sync to `corrections.md`
+**经验诀窍自动记录** → 追加到 `experiences.md`，同步到 `corrections.md`
 
-**纠正信号**：
-- "No, that's not right..." → 搜经验诀窍未命中，继续尝试
-- "That's wrong..." / "You need to..." → 记录纠正
-- "Remember that I always..." → 确认偏好
-- "Why do you keep..." → 识别重复错误模式
+**Correction signals / 纠正信号**：
+- "No, that's not right..." → Learning search missed, keep trying
+- "That's wrong..." / "You need to..." → Record correction
+- "Remember that I always..." → Confirm preference
+- "Why do you keep..." → Identify repeated error patterns
 
-**经验信号**（成功解决问题后）：
-- 失败 ≥2 次后成功 → 写入 experiences.md
-- 同 Tag ≥3 次 → 晋升 HOT
-- 新技术方案有效 → 记录到 domains/
+**Learning signals / 经验信号**：
+- Succeeded after 2+ failures → Write to experiences.md
+- Same Tag 3x → Promote to HOT
+- New tech solution effective → Record to domains/
 
-**忽略**（不记录）：
-- 一次性指令（"do X now"）
-- 上下文特定（"in this file..."）
-- 假设讨论（"what if..."）
+**Ignore / 忽略**：
+- One-time instructions ("do X now")
+- Context-specific ("in this file...")
+- Hypothetical discussions ("what if...")
 
-## Self-Reflection
+## Self-Reflection / 自我反思
 
-完成重要工作后，暂停并评估：
+After completing important work, pause and evaluate / 完成重要工作后暂停评估：
 
-1. **是否符合预期？** — 对比结果与意图
-2. **哪里可以改进？** — 识别下次改进点
-3. **这是模式吗？** → 是则记录到 `corrections.md`
+1. **Did it match expectations? / 是否符合预期？** — Compare result vs intent
+2. **What could be improved? / 哪里可以改进？** — Identify next improvements
+3. **Is this a pattern? / 这是模式吗？** → If yes, record to `corrections.md`
 
-**何时自我反思**：
-- 完成多步骤任务后
-- 收到反馈（正面或负面）后
-- 修复 Bug 或错误后
-- 注意到输出可以更好时
+**When to reflect / 何时自我反思**：
+- After completing multi-step tasks
+- After receiving feedback (positive or negative)
+- After fixing bugs or errors
+- When noticing output could be better
 
-**日志格式**：
+**Log format / 日志格式**：
 ```
-CONTEXT: [任务类型]
-REFLECTION: [我注意到的]
-LESSON: [下次要做的不同]
-```
-
-**示例**：
-```
-CONTEXT: 排查 Mac 迁移后网关断连
-REFLECTION: 从终端启动正常，但从 LaunchAgent 启动失败
-LESSON: 迁移后必须检查 LaunchAgent 注册状态
+CONTEXT: [task type / 任务类型]
+REFLECTION: [what I noticed / 我注意到的]
+LESSON: [what to do differently / 下次要做的不同]
 ```
 
-自我反思条目遵循相同晋升规则：3x 成功应用 → 晋升 HOT。
+Reflection entries follow same promotion rules: 3x successful use → Promote to HOT
 
-## Quick Queries
+## Quick Queries / 快速查询
 
-| 用户说 | 操作 |
+| User says / 用户说 | Action / 操作 |
 |--------|------|
-| "搜经验诀窍 X" | 搜索所有层（search.sh） |
-| "查看所有经验" | 显示 experiences.md 全部 |
-| "最近学到了什么？" | 显示最近10条从 corrections.md |
-| "有哪些模式？" | 列出 memory.md (HOT) |
-| "查看 [项目] 模式" | 加载 projects/{name}.md |
-| "warm 层有什么？" | 列出 domains/ + projects/ 文件 |
-| "经验统计" | 显示每层条数统计 |
-| "忘记 X" | 从所有层删除（先确认） |
-| "导出经验" | ZIP 所有文件 |
+| "搜经验诀窍 X" | Search all layers / 搜索所有层 (search.sh) |
+| "查看所有经验" | Display experiences.md / 显示全部 |
+| "最近学到了什么？" | Show last 10 from corrections.md |
+| "有哪些模式？" | List memory.md (HOT) |
+| "查看 [项目] 模式" | Load projects/{name}.md |
+| "warm 层有什么？" | List domains/ + projects/ |
+| "经验统计" | Show layer counts / 显示每层统计 |
+| "忘记 X" | Delete from all layers (confirm first) |
+| "导出经验" | ZIP all files |
 
-## Memory Stats
-
-执行 "经验统计" 时报告：
+## Memory Stats / 记忆统计
 
 ```
-📊 rocky-know-how 经验诀窍统计
+📊 rocky-know-how Learning Stats / 经验诀窍统计
 
-🔥 HOT (始终加载):
-  memory.md: X 条目
+🔥 HOT (always loaded / 始终加载):
+  memory.md: X entries
 
-🌡️ WARM (按需加载):
-  domains/: X 文件
-  projects/: X 文件
+🌡️ WARM (loaded on demand / 按需加载):
+  domains/: X files
+  projects/: X files
 
-❄️ COLD (归档):
-  archive/: X 文件
+❄️ COLD (archived / 归档):
+  archive/: X files
 
-经验诀窍 (v1兼容):
-  experiences.md: X 条
-
-最近7天:
-  新纠正: X
-  晋升到HOT: X
-  降级到WARM: X
+Learnings (v1 compatible / v1兼容):
+  experiences.md: X entries
 ```
 
-## Common Traps
+## Common Traps / 常见陷阱
 
-| 陷阱 | 为什么失败 | 更好做法 |
+| Trap / 陷阱 | Why it fails / 失败原因 | Better approach / 更好做法 |
 |------|----------|---------|
-| 从沉默中学习 | 创建错误规则 | 等待明确纠正或重复证据 |
-| 晋升太快 | 污染 HOT 记忆 | 保持新教训暂定直到重复确认 |
-| 读取每个命名空间 | 浪费 context | 只加载 HOT + 最小的匹配文件 |
-| 压缩时删除 | 失去信任和历史 | 合并、摘要或降级 |
+| Learning from silence / 从沉默中学习 | Creates wrong rules | Wait for explicit correction |
+| Promoting too fast / 晋升太快 | Pollutes HOT memory | Keep tentative until confirmed |
+| Reading every namespace / 读取所有命名空间 | Wastes context | Load only HOT + minimal matching |
+| Deleting during compaction / 压缩时删除 | Loses history | Merge, summarize, or demote |
 
-## Core Rules
+## Core Rules / 核心规则
 
-### 1. 从纠正和自我反思中学习
-- 记录用户明确纠正的内容
-- 记录自己识别出的工作改进
-- 绝不从沉默中推断
-- 3次相同教训 → 询问确认作为规则
+### 1. Learn from corrections and self-reflection / 从纠正和自我反思中学习
+- Record explicit user corrections
+- Record self-identified work improvements
+- Never infer from silence
+- Same lesson 3x → Ask user to confirm as rule
 
-### 2. 分层存储
-| 层 | 位置 | 大小限制 | 行为 |
-|----|------|---------|------|
-| HOT | memory.md | ≤100行 | 始终加载 |
-| WARM | projects/, domains/ | ≤200行 | 按 context 匹配加载 |
-| COLD | archive/ | 不限 | 显式查询才加载 |
+### 2. Layered storage / 分层存储
+| Layer | Location | Size limit | Behavior |
+|-------|----------|-----------|----------|
+| HOT | memory.md | ≤100 lines | Always loaded |
+| WARM | projects/, domains/ | ≤200 lines | Load on context match |
+| COLD | archive/ | Unlimited | Load on explicit query |
 
-### 3. 自动晋升/降级
-- 7天内同 Tag 出现 3次 → 晋升 HOT
-- 30天未使用 → 降级到 WARM
-- 90天未使用 → 归档到 COLD
-- 永不删除（不询问不删除）
+### 3. Auto-promotion / demotion / 自动晋升/降级
+- Same Tag 3x in 7 days → Promote to HOT
+- Unused 30 days → Demote to WARM
+- Unused 90 days → Archive to COLD
+- Never delete (without asking)
 
-### 4. 命名空间隔离
-- 项目模式保持在 `projects/{name}.md`
-- 全局偏好 → HOT 层（memory.md）
-- 领域模式（code, infra, dev）→ `domains/`
-- 跨命名空间继承：global → domain → project
+### 4. Namespace isolation / 命名空间隔离
+- Project patterns → `projects/{name}.md`
+- Global preferences → HOT layer (memory.md)
+- Domain patterns (code, infra, dev) → `domains/`
+- Cross-namespace inheritance: global → domain → project
 
-### 5. 冲突解决
-当模式矛盾时：
-1. 最具体优先（project > domain > global）
-2. 最新优先（同级）
-3. 不明确 → 询问用户
+### 5. Conflict resolution / 冲突解决
+When patterns conflict:
+1. Most specific wins (project > domain > global)
+2. Most recent wins (same level)
+3. Unclear → Ask user
 
-### 6. 压缩
-当文件超过限制：
-1. 合并相似纠正为单一规则
-2. 归档未使用模式
-3. 摘要冗长条目
-4. 永不丢失已确认偏好
+### 6. Compaction / 压缩
+When files exceed limits:
+1. Merge similar corrections into single rule
+2. Archive unused patterns
+3. Summarize verbose entries
+4. Never lose confirmed preferences
 
-### 7. 透明度
-- 每次从记忆行动 → 引用来源："使用 X（来自 domains/code.md:12）"
-- 每周摘要可用：学到的模式、降级的、归档的
-- 随时完整导出：所有文件 ZIP
+### 7. Transparency / 透明度
+- Every action from memory → Quote source: "Using X (from domains/code.md:12)"
+- Weekly summary available
+- Full export anytime: ZIP all files
 
-### 8. 安全边界
-参见 `boundaries.md` — 永不存储凭证、健康数据、第三方信息。
+### 8. Safety boundaries / 安全边界
+See `boundaries.md` — Never store credentials, health data, or third-party info.
 
-### 9. 优雅降级
-如果 context 限制触发：
-1. 只加载 memory.md（HOT）
-2. 按需加载相关命名空间
-3. 永不静默失败 — 告知用户未加载什么
+### 9. Graceful degradation / 优雅降级
+If context limits trigger:
+1. Load only memory.md (HOT)
+2. Load matching namespaces on demand
+3. Never fail silently — Tell user what didn't load
 
-## Scope
+## Scope / 范围
 
-本技能**只做**：
-- 从用户纠正和自我反思中学习
-- 在本地文件存储偏好（`~/.openclaw/.learnings/`）
-- 在 workspace 整合心跳时维护 `heartbeat-state.md`
-- 激活时读取自己的记忆文件
+This skill **only does** / 本技能**只做**：
+- Learn from user corrections and self-reflection
+- Store preferences in local files (`~/.openclaw/.learnings/`)
+- Maintain `heartbeat-state.md` on workspace-integrated heartbeat
+- Read own memory files when activated
 
-本技能**永不**：
-- 访问日历、邮件或联系人
-- 发出网络请求
-- 读取 `~/.openclaw/.learnings/` 以外的文件
-- 从沉默或观察中推断偏好
-- 在心跳清理期间删除或盲目重写 rocky-know-how 记忆
-- 修改自己的 SKILL.md
+This skill **never does** / 本技能**永不**：
+- Access calendars, email, or contacts
+- Make network requests
+- Read files outside `~/.openclaw/.learnings/`
+- Infer preferences from silence or observation
+- Delete or blindly overwrite rocky-know-how memory during heartbeat cleanup
+- Modify its own SKILL.md
 
-## Data Storage
+## Data Storage / 数据存储
 
-本地状态在 `~/.openclaw/.learnings/`：
+Local state in `~/.openclaw/.learnings/`:
 
-- `memory.md` — HOT 规则和已确认偏好
-- `corrections.md` — 明确纠正和可复用教训
-- `experiences.md` — v1 格式经验诀窍（向后兼容）
-- `domains/` — 领域隔离模式
-- `projects/` — 项目隔离模式
-- `archive/` — 衰减或休眠模式
-- `heartbeat-state.md` — 循环维护标记
+- `memory.md` — HOT rules and confirmed preferences / HOT 规则和已确认偏好
+- `corrections.md` — Explicit corrections and reusable lessons / 纠正日志
+- `experiences.md` — v1 format learnings (backward compatible) / v1 格式经验诀窍
+- `domains/` — Domain-isolated patterns / 领域隔离模式
+- `projects/` — Project-isolated patterns / 项目隔离模式
+- `archive/` — Decayed or dormant patterns / 归档
+- `heartbeat-state.md` — Cyclic maintenance markers / 循环维护标记
 
 ---
 
-## 反馈
+## Feedback / 反馈
 
-- 有用的话：`clawhub star rocky-know-how`
-- 保持更新：`clawhub sync`
+- Found it useful: `clawhub star rocky-know-how`
+- Keep updated: `clawhub sync`
