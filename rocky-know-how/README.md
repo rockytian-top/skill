@@ -77,7 +77,7 @@ install.sh 会自动将 hook 路径添加到 `openclaw.json` 的 `extraDirs`，*
 openclaw gateway restart
 ```
 
-如需手动配置（不推荐），参考 wiki/Installation.md。
+如需手动配置（不推荐），参考 rocky-know-how/setup.md。
 
 ## 📖 用法
 
