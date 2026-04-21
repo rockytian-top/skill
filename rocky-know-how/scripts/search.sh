@@ -354,7 +354,7 @@ if [ -n "$FILTER_PROJECT" ]; then
 fi
 
 # 需要关键词或过滤条件
-if [ ${#KEYWORDS[@]} -eq 0 ] && [ -z "$FILTER_TAG" ] && [ -z "$FILTER_AREA" ]; then
+if [ ${#KEYWORDS[@]} -eq 0 ] && [ -z "$FILTER_TAG" ] && [ -z "$FILTER_AREA" ] && [ -z "$FILTER_DOMAIN" ] && [ -z "$FILTER_PROJECT" ] && [ -z "$FILTER_LAYER" ] && [ -z "$SHOW_ALL" ] && [ -z "$SINCE_DATE" ]; then
   echo "用法: search.sh [选项] <关键词...>"
   echo "提示: 用 --tag / --area / --domain / --project / --layer 过滤，或输入关键词搜索"
   exit 1
