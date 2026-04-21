@@ -99,9 +99,15 @@ ls ~/.openclaw/.learnings/experiences.md
 
 ### 5. 验证安装
 
+install.sh 会自动配置 Hook 并重启 Gateway 后，运行统计面板验证：
+
 ```bash
-# 运行统计面板
-bash ~/.openclaw/workspace-fs-daying/skills/rocky-know-how/scripts/stats.sh
+bash $(openclaw env 2>/dev/null | grep STATE_DIR | cut -d= -f2)/skills/rocky-know-how/scripts/stats.sh
+```
+
+或直接运行（假设默认 OPENCLAW_STATE_DIR）：
+```bash
+bash ~/.openclaw/skills/rocky-know-how/scripts/stats.sh
 ```
 
 预期输出：

@@ -51,6 +51,8 @@ record.sh --namespace project "问题" "踩坑" "方案" "预防" "tags" wx.news
 record.sh --dry-run "问题" "踩坑" "方案" "预防" "tags" infra
 ```
 
-## 安装后脚本路径
+## 脚本路径
 
-安装后所有脚本在 `~/.openclaw/.learnings/scripts/`。
+脚本位于安装目录，搜索路径由 OPENCLAW_STATE_DIR 决定：
+- OPENCLAW_STATE_DIR 设置时 → `$OPENCLAW_STATE_DIR/skills/rocky-know-how/scripts/`
+- 默认 HOME/.openclaw → `~/.openclaw/skills/rocky-know-how/scripts/`

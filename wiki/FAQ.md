@@ -20,10 +20,13 @@ zip -r learnings-backup.zip ~/.openclaw/.learnings/
 
 ## Q: 误删了经验怎么办？
 
-经验只追加不删除（除非手动 clean.sh）。从 git 历史恢复：
+经验只追加不删除（除非手动 clean.sh）。由于 .learnings/ 不是 git 仓库，建议定期备份：
 ```bash
-cd ~/.openclaw/.learnings
-git checkout HEAD -- experiences.md
+# 备份
+cp -r ~/.openclaw/.learnings ~/learnings-backup-$(date +%Y%m%d)
+
+# 恢复
+cp ~/learnings-backup-YYYYMMDD/experiences.md ~/.openclaw/.learnings/
 ```
 
 ## Q: 晋升规则是什么？

@@ -24,8 +24,11 @@ bash scripts/install.sh
 
 ## 安装后验证
 
+install.sh 会自动配置 Hook（添加到 openclaw.json 的 extraDirs），无需手动配置。
+
+验证安装成功：
 ```bash
-bash ~/.openclaw/.learnings/scripts/stats.sh
+bash ~/.openclaw/skills/rocky-know-how/scripts/stats.sh
 ```
 
 ## 卸载
