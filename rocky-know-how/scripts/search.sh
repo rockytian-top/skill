@@ -1,12 +1,15 @@
 #!/bin/bash
-# rocky-know-how 搜经验诀窍 v1.3.0
+# rocky-know-how 搜经验诀窍 v2.0.0
 # 用法: search.sh [选项] <关键词1> [关键词2]...
 #       search.sh --all              显示所有
 #       search.sh --preview "关键词"  只显示摘要
 #       search.sh --tag "tag1,tag2"   按标签搜索
-#       search.sh --area infra       按领域搜索
+#       search.sh --area infra        按领域搜索
+#       search.sh --domain code       按命名空间（domain）搜索
+#       search.sh --project foo       按命名空间（project）搜索
 #       search.sh --global "关键词"   搜所有workspace
 #       search.sh --since YYYY-MM-DD  按日期过滤
+#       search.sh --layer hot|warm|cold  按层搜索
 
 MAX_RESULTS=10
 SINCE_DATE=""
@@ -15,6 +18,9 @@ PREVIEW=false
 GLOBAL=false
 FILTER_TAG=""
 FILTER_AREA=""
+FILTER_DOMAIN=""
+FILTER_PROJECT=""
+FILTER_LAYER=""
 KEYWORDS=()
 
 while [[ $# -gt 0 ]]; do
@@ -26,12 +32,18 @@ while [[ $# -gt 0 ]]; do
     --max-results) MAX_RESULTS="$2"; shift 2 ;;
     --tag)         FILTER_TAG="$2"; shift 2 ;;
     --area)        FILTER_AREA="$2"; shift 2 ;;
+    --domain)      FILTER_DOMAIN="$2"; shift 2 ;;
+    --project)     FILTER_PROJECT="$2"; shift 2 ;;
+    --layer)       FILTER_LAYER="$2"; shift 2 ;;
     -h|--help)
       echo "用法: search.sh [选项] <关键词...>"
       echo "  --all              显示所有"
       echo "  --preview          只显示摘要"
       echo "  --tag \"t1,t2\"      按标签搜索（AND）"
       echo "  --area infra       按领域搜索"
+      echo "  --domain code      按 domain 命名空间搜索"
+      echo "  --project foo      按 project 命名空间搜索"
+      echo "  --layer hot|warm|cold  按层搜索"
       echo "  --global           搜所有workspace"
       echo "  --since YYYY-MM-DD 按日期过滤"
       echo "  --max-results N    最多显示N条（默认10）"
@@ -41,29 +53,43 @@ while [[ $# -gt 0 ]]; do
   esac
 done
 
-SHARED_DIR="$HOME/.openclaw/.learnings"
-ERRORS_FILE="$SHARED_DIR/experiences.md"
-
-# --global: 收集各 agent workspace 的文件
-EXTRA_FILES=()
-if $GLOBAL; then
-  for d in "$HOME"/.openclaw/workspace-*/.learnings/experiences.md; do
-    [ -f "$d" ] && EXTRA_FILES+=("$d")
-  done
+# 自动拆分：如果只传了一个含空格的参数，拆成多个关键词
+if [ ${#KEYWORDS[@]} -eq 1 ] && echo "${KEYWORDS[0]}" | grep -q ' '; then
+  read -ra SPLIT_KW <<< "${KEYWORDS[0]}"
+  KEYWORDS=("${SPLIT_KW[@]}")
 fi
 
-# 提取条目块（返回0=有数据，1=无）
-# 用临时文件存放块，按相关度排序输出
+# 动态获取状态目录（适配多网关实例）
+get_state_dir() {
+  if [ -n "$OPENCLAW_STATE_DIR" ]; then
+    echo "$OPENCLAW_STATE_DIR"
+  else
+    echo "$HOME/.openclaw"
+  fi
+}
+STATE_DIR=$(get_state_dir)
+SHARED_DIR="$STATE_DIR/.learnings"
+ERRORS_FILE="$SHARED_DIR/experiences.md"
+
+# 新版 layered 存储路径
+MEMORY_FILE="$SHARED_DIR/memory.md"
+DOMAINS_DIR="$SHARED_DIR/domains"
+PROJECTS_DIR="$SHARED_DIR/projects"
+ARCHIVE_DIR="$SHARED_DIR/archive"
+CORRECTIONS_FILE="$SHARED_DIR/corrections.md"
+
+# 临时目录
 TMPDIR_KH=$(mktemp -d /tmp/rocky-know-how-XXXXXX)
 trap 'rm -rf "$TMPDIR_KH"' EXIT
 
+# ========== experiences.md（v1主数据）搜索函数 ==========
+
+# 提取条目块
 extract_blocks() {
   local file="$1"
   [ ! -f "$file" ] && return 1
-
   local lines=$(grep -n "^## \[EXP-" "$file" 2>/dev/null | cut -d: -f1)
   [ -z "$lines" ] && return 1
-
   local block_idx=0
   local prev=""
   for line in $lines; do
@@ -75,33 +101,28 @@ extract_blocks() {
     block_idx=$((block_idx+1))
     prev=$line
   done
-  # 最后一个块
   local total=$(wc -l < "$file" | tr -d ' ')
   sed -n "${prev},${total}p" "$file" > "$TMPDIR_KH/block_${block_idx}.md"
   block_idx=$((block_idx+1))
-
   echo $block_idx
 }
 
-# 检查单个块是否匹配，返回相关度分数（0=不匹配）
+# 评分单个块
 score_block() {
   local block_file="$1"
   local score=0
 
-  # 日期过滤
   if [ -n "$SINCE_DATE" ]; then
     local entry_date=$(grep "^## \[EXP-" "$block_file" | head -1 | sed 's/.*\[EXP-\([0-9]\{8\}\)-.*/\1/')
     local since_num=$(echo "$SINCE_DATE" | sed 's/-//g')
     [ "${entry_date:-0}" -lt "${since_num:-0}" ] 2>/dev/null && echo "0" && return
   fi
 
-  # Area 过滤
   if [ -n "$FILTER_AREA" ]; then
     local entry_area=$(grep "^\*\*Area\*\*:" "$block_file" | head -1 | sed 's/\*\*Area\*\*: //')
     [ "$entry_area" != "$FILTER_AREA" ] && echo "0" && return
   fi
 
-  # Tag 过滤（AND：所有指定 tag 都要命中）
   if [ -n "$FILTER_TAG" ]; then
     local entry_tags=$(grep "^\*\*Tags\*\*:" "$block_file" | head -1 | sed 's/\*\*Tags\*\*: //')
     local tag_miss=false
@@ -116,7 +137,6 @@ score_block() {
     fi
   fi
 
-  # 关键词匹配 + 计分
   local kw_len=${#KEYWORDS[@]:-0}
   if [ "$kw_len" -gt 0 ]; then
     local total_kw=$kw_len
@@ -127,14 +147,13 @@ score_block() {
     [ $hit -eq 0 ] && echo "0" && return
     score=$hit
   else
-    # 无关键词 = 匹配所有（--all / --tag / --area 场景）
     score=1
   fi
 
   echo "$score"
 }
 
-# 打印条目（预览或完整）
+# 打印条目
 print_block() {
   local block_file="$1"
   local score="$2"
@@ -142,7 +161,6 @@ print_block() {
 
   local id=$(grep "^## \[EXP-" "$block_file" | head -1 | sed 's/## //')
   local problem=$(sed -n '/^### 问题$/{n;p;}' "$block_file")
-  local prevent=$(sed -n '/^### 预防$/{n;p;}' "$block_file")
   local solution=$(sed -n '/^### 正确方案$/{n;p;}' "$block_file")
   local tags=$(grep "^\*\*Tags\*\*:" "$block_file" | head -1 | sed 's/\*\*Tags\*\*: //')
   local area=$(grep "^\*\*Area\*\*:" "$block_file" | head -1 | sed 's/\*\*Area\*\*: //')
@@ -161,9 +179,10 @@ print_block() {
   fi
 }
 
-# 搜索单个文件
-search_file() {
+# 搜索单个 experiences 文件
+search_experiences_file() {
   local file="$1"
+  rm -f "$TMPDIR_KH/scores.txt"
   local count=$(extract_blocks "$file")
   [ -z "$count" ] && return 1
   [ "$count" -eq 0 ] && return 1
@@ -172,20 +191,17 @@ search_file() {
   local total_kw=${#KEYWORDS[@]:-0}
   [ "$total_kw" -eq 0 ] && total_kw=1
 
-  # 评分 + 排序
   for i in $(seq 0 $((count-1))); do
     local block_file="$TMPDIR_KH/block_${i}.md"
     [ ! -f "$block_file" ] && continue
     local s=$(score_block "$block_file")
     [ "$s" = "0" ] && continue
-    # 按分数存入排序文件
     echo "${s} ${i}" >> "$TMPDIR_KH/scores.txt"
   done
 
   [ ! -f "$TMPDIR_KH/scores.txt" ] && return 1
 
-  # 按分数降序排序输出
-  sort -rn -k1,1 "$TMPDIR_KH/scores.txt" | head -$MAX_RESULTS | while read -r s idx; do
+  { sort -rn -k1,1 "$TMPDIR_KH/scores.txt" | head -$MAX_RESULTS; } 2>/dev/null | while read -r s idx; do
     print_block "$TMPDIR_KH/block_${idx}.md" "$s" "$total_kw"
     found=$((found+1))
   done
@@ -211,33 +227,166 @@ format_all() {
   ' "$file"
 }
 
-# --all 模式（不过滤/排序）
+# ========== layered 存储搜索 ==========
+
+# 搜索 layered 文件（memory.md, domains/, projects/）
+search_layered_file() {
+  local file="$1"
+  local source="$2"
+  [ ! -f "$file" ] && return 1
+
+  local kw_len=${#KEYWORDS[@]:-0}
+  [ "$kw_len" -eq 0 ] && kw_len=1
+
+  local hits=0
+  local line_num=0
+  while IFS= read -r line; do
+    line_num=$((line_num+1))
+    [ -z "$line" ] && continue
+    # 跳过标题行
+    echo "$line" | grep -qE "^#|^## |^\-\-|^\*\*" && continue
+
+    local score=0
+    for kw in "${KEYWORDS[@]}"; do
+      echo "$line" | grep -qi --color=never "$kw" && score=$((score+1))
+    done
+
+    if [ $score -gt 0 ]; then
+      echo "📎 ${source}:${line_num} [${score}/${kw_len}]"
+      echo "   $line"
+      echo ""
+      hits=$((hits+1))
+    fi
+  done < "$file"
+
+  [ $hits -gt 0 ] && return 0 || return 1
+}
+
+# ========== 主流程 ==========
+
+# --all 模式
 if $SHOW_ALL; then
   echo "=== 全部经验诀窍 ==="
+  echo ""
+  echo "─── v1 主数据 (experiences.md) ───"
   [ -f "$ERRORS_FILE" ] && format_all "$ERRORS_FILE"
-  for f in "${EXTRA_FILES[@]:-}"; do
-    [ "$f" = "$ERRORS_FILE" ] && continue
-    [ -z "$f" ] && continue
-    echo "--- $(basename "$(dirname "$f")") ---"
-    format_all "$f"
-  done
+  echo ""
+  echo "─── HOT 层 (memory.md) ───"
+  [ -f "$MEMORY_FILE" ] && cat "$MEMORY_FILE" || echo "  (空)"
+  echo ""
+  echo "─── Domain 层 (domains/) ───"
+  if [ -d "$DOMAINS_DIR" ]; then
+    find "$DOMAINS_DIR" -maxdepth 1 -name "*.md" -type f 2>/dev/null | sort | while read -r f; do
+      echo "  📄 $(basename "$f"):"
+      { grep -v "^#" "$f" | grep -v "^$"; } 2>/dev/null | head -5
+      echo ""
+    done
+  fi
+  echo "─── Project 层 (projects/) ───"
+  if [ -d "$PROJECTS_DIR" ]; then
+    find "$PROJECTS_DIR" -maxdepth 1 -name "*.md" -type f 2>/dev/null | sort | while read -r f; do
+      echo "  📄 $(basename "$f"):"
+      { grep -v "^#" "$f" | grep -v "^$"; } 2>/dev/null | head -5
+      echo ""
+    done
+  fi
   exit 0
+fi
+
+# 层过滤模式
+if [ -n "$FILTER_LAYER" ]; then
+  case "$FILTER_LAYER" in
+    hot)
+      echo "─── HOT: memory.md ───"
+      [ -f "$MEMORY_FILE" ] && cat "$MEMORY_FILE" || echo "(空)"
+      ;;
+    warm)
+      echo "─── WARM: domains/ + projects/ ───"
+      [ -d "$DOMAINS_DIR" ] && ls "$DOMAINS_DIR"/*.md 2>/dev/null && for f in "$DOMAINS_DIR"/*.md; do
+        [ -f "$f" ] && echo "📄 $(basename "$f"):" && cat "$f" && echo ""
+      done
+      [ -d "$PROJECTS_DIR" ] && for f in "$PROJECTS_DIR"/*.md; do
+        [ -f "$f" ] && echo "📄 $(basename "$f"):" && cat "$f" && echo ""
+      done
+      ;;
+    cold)
+      echo "─── COLD: archive/ ───"
+      [ -d "$ARCHIVE_DIR" ] && find "$ARCHIVE_DIR" -name "*.md" -exec echo "📦 {}:" \; -exec head -10 {} \; 2>/dev/null || echo "(空)"
+      ;;
+  esac
+  exit 0
+fi
+
+# Domain 搜索（无关键词时直接展示全部内容）
+if [ -n "$FILTER_DOMAIN" ]; then
+  echo "─── Domain: ${FILTER_DOMAIN} ───"
+  domain_file="$DOMAINS_DIR/${FILTER_DOMAIN}.md"
+  if [ -f "$domain_file" ]; then
+    if [ ${#KEYWORDS[@]} -eq 0 ]; then
+      # 无关键词：直接展示文件全部内容
+      cat "$domain_file"
+      exit 0
+    else
+      # 有关键词：走搜索逻辑
+      search_layered_file "$domain_file" "$FILTER_DOMAIN.md" && exit 0
+    fi
+  fi
+  echo "未找到 domain: ${FILTER_DOMAIN}"
+  exit 1
+fi
+
+# Project 搜索（无关键词时直接展示全部内容）
+if [ -n "$FILTER_PROJECT" ]; then
+  echo "─── Project: ${FILTER_PROJECT} ───"
+  project_file="$PROJECTS_DIR/${FILTER_PROJECT}.md"
+  if [ -f "$project_file" ]; then
+    if [ ${#KEYWORDS[@]} -eq 0 ]; then
+      # 无关键词：直接展示文件全部内容
+      cat "$project_file"
+      exit 0
+    else
+      # 有关键词：走搜索逻辑
+      search_layered_file "$project_file" "${FILTER_PROJECT}.md" && exit 0
+    fi
+  fi
+  echo "未找到 project: ${FILTER_PROJECT}"
+  exit 1
 fi
 
 # 需要关键词或过滤条件
 if [ ${#KEYWORDS[@]} -eq 0 ] && [ -z "$FILTER_TAG" ] && [ -z "$FILTER_AREA" ]; then
   echo "用法: search.sh [选项] <关键词...>"
-  echo "提示: 用 --tag / --area 过滤，或输入关键词搜索"
+  echo "提示: 用 --tag / --area / --domain / --project / --layer 过滤，或输入关键词搜索"
   exit 1
 fi
 
-# 搜索
+# 搜索 experiences.md
+echo "─── 经验诀窍 (experiences.md) ───"
 total_found=0
-for f in "$ERRORS_FILE" "${EXTRA_FILES[@]:-}"; do
-  [ -z "$f" ] && continue
-  rm -f "$TMPDIR_KH/scores.txt"
-  search_file "$f" && total_found=1
-done
+rm -f "$TMPDIR_KH/scores.txt"
+search_experiences_file "$ERRORS_FILE" && total_found=1
 
-[ $total_found -eq 0 ] && echo "经验诀窍未找到相关记录" && exit 1
+# 搜索 layered 文件（hot/warm 层，忽略 cold）
+echo "─── Layered 记忆 ───"
+layered_found=0
+
+if [ -f "$MEMORY_FILE" ]; then
+  search_layered_file "$MEMORY_FILE" "memory.md" && layered_found=1
+fi
+
+if [ -d "$DOMAINS_DIR" ]; then
+  for f in "$DOMAINS_DIR"/*.md; do
+    [ -f "$f" ] || continue
+    search_layered_file "$f" "$(basename "$f")" && layered_found=1
+  done
+fi
+
+if [ -d "$PROJECTS_DIR" ]; then
+  for f in "$PROJECTS_DIR"/*.md; do
+    [ -f "$f" ] || continue
+    search_layered_file "$f" "$(basename "$f")" && layered_found=1
+  done
+fi
+
+[ $total_found -eq 0 ] && [ $layered_found -eq 0 ] && echo "经验诀窍未找到相关记录" && exit 1
 exit 0

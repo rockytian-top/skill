@@ -1,8 +1,8 @@
 #!/bin/bash
-# rocky-know-how 归档旧条目 v1.3.0
+# rocky-know-how 归档旧条目 v2.0.0
 # 用法: archive.sh [--days N] [--dry-run] [--auto]
 
-DAYS=30
+DAYS=90
 DRY_RUN=false
 AUTO=false
 
@@ -13,7 +13,7 @@ while [[ $# -gt 0 ]]; do
     --auto)    AUTO=true; shift ;;
     -h|--help)
       echo "用法: archive.sh [--days N] [--dry-run] [--auto]"
-      echo "  --days N    归档N天前的条目（默认30）"
+      echo "  --days N    归档N天前的条目（默认90）"
       echo "  --dry-run   只预览不执行"
       echo "  --auto      自动模式（适合cron/heartbeat调用）"
       exit 0 ;;
@@ -21,7 +21,9 @@ while [[ $# -gt 0 ]]; do
   esac
 done
 
-SHARED_DIR="$HOME/.openclaw/.learnings"
+get_state_dir() { [ -n "$OPENCLAW_STATE_DIR" ] && echo "$OPENCLAW_STATE_DIR" || echo "$HOME/.openclaw"; }
+STATE_DIR=$(get_state_dir)
+SHARED_DIR="$STATE_DIR/.learnings"
 ERRORS_FILE="$SHARED_DIR/experiences.md"
 ARCHIVE_DIR="$SHARED_DIR/archive"
 
@@ -32,12 +34,10 @@ mkdir -p "$ARCHIVE_MONTH_DIR"
 
 CUTOFF_DATE=$(date -v-${DAYS}d +%Y%m%d 2>/dev/null || date -d "${DAYS} days ago" +%Y%m%d)
 
-# 提取条目的日期部分
 extract_date() {
   echo "$1" | sed 's/.*\[EXP-\([0-9]\{8\}\)-.*/\1/'
 }
 
-# 检查是否应该归档
 is_old() {
   local d="$1"
   [ -z "$d" ] && return 1
@@ -54,11 +54,8 @@ if $AUTO; then
     fi
   done < "$ERRORS_FILE"
 
-  if [ $old_count -eq 0 ]; then
-    exit 0
-  fi
+  [ $old_count -eq 0 ] && exit 0
 
-  # 有旧条目，执行归档
   BACKUP_FILE="$ARCHIVE_MONTH_DIR/experiences-$(date +%Y%m%d-%H%M%S).md"
   cp "$ERRORS_FILE" "$BACKUP_FILE"
 
@@ -85,7 +82,6 @@ ${line}"
     fi
   done < "$ERRORS_FILE"
 
-  # 最后一个块
   if [ -n "$current_block" ] && ! $in_old; then
     echo "$current_block" >> "$TEMP_FILE"
   fi
@@ -95,7 +91,7 @@ ${line}"
   exit 0
 fi
 
-# 手动模式：详细输出
+# 手动模式
 if $DRY_RUN; then
   echo "=== 模拟归档 ==="
   echo "截止日期: ${CUTOFF_DATE:0:4}-${CUTOFF_DATE:4:2}-${CUTOFF_DATE:6:2}（${DAYS}天前）"
@@ -144,12 +140,10 @@ while IFS= read -r line; do
     date=$(extract_date "$line")
     in_old=false; is_old "$date" && in_old=true
   else
-    current_block="${current_block}
-${line}"
+    current_block="${current_block}"$'\n'"$line"
   fi
 done < "$ERRORS_FILE"
 
-# 最后一个块
 if [ -n "$current_block" ] && ! $in_old; then
   echo "$current_block" >> "$TEMP_FILE"
 elif $in_old; then

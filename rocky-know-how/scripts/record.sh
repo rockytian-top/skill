@@ -1,48 +1,72 @@
 #!/bin/bash
-# rocky-know-how 写入经验诀窍 v1.3.0
-# 用法: record.sh [--dry-run] "<问题>" "<踩坑过程>" "<正确方案>" "<预防>" "<tags>" [area]
+# rocky-know-how 写入经验诀窍 v2.0.0
+# 用法: record.sh [--dry-run] [--namespace global|domain|project] "<问题>" "<踩坑过程>" "<正确方案>" "<预防>" "<tags>" [area|domain]
 # 例: record.sh "排查网站只看进程" "第1次:只看进程→报正常" "curl验证" "必须curl" "troubleshooting" infra
 
 SKILL_DIR="$(cd "$(dirname "$0")" && pwd)"
-SHARED_DIR="$HOME/.openclaw/.learnings"
-ERRORS_FILE="$SHARED_DIR/experiences.md"
 
-# 初始化
-mkdir -p "$SHARED_DIR/archive"
-
-# 初始化文件（只写一次头部）
-init_file() {
-  if [ ! -f "$ERRORS_FILE" ]; then
-    printf "# 经验诀窍\n\n---\n" > "$ERRORS_FILE"
+# 动态获取状态目录
+get_state_dir() {
+  if [ -n "$OPENCLAW_STATE_DIR" ]; then
+    echo "$OPENCLAW_STATE_DIR"
+  else
+    echo "$HOME/.openclaw"
   fi
 }
 
-# 动态获取 workspace 路径（和 handler.js 保持一致）
+STATE_DIR=$(get_state_dir)
+SHARED_DIR="$STATE_DIR/.learnings"
+ERRORS_FILE="$SHARED_DIR/experiences.md"
+CORRECTIONS_FILE="$SHARED_DIR/corrections.md"
+MEMORY_FILE="$SHARED_DIR/memory.md"
+DOMAINS_DIR="$SHARED_DIR/domains"
+PROJECTS_DIR="$SHARED_DIR/projects"
+ARCHIVE_DIR="$SHARED_DIR/archive"
+
+# 初始化目录
+mkdir -p "$SHARED_DIR" "$DOMAINS_DIR" "$PROJECTS_DIR" "$ARCHIVE_DIR"
+
+# 初始化文件
+init_file() {
+  local file="$1"
+  local header="$2"
+  if [ ! -f "$file" ]; then
+    printf "%s\n\n---\n" "$header" > "$file"
+  fi
+}
+
+init_file "$ERRORS_FILE" "# 经验诀窍"
+
+# 动态获取 workspace 路径
 get_workspace() {
   if [ -n "$OPENCLAW_WORKSPACE" ]; then
     echo "$OPENCLAW_WORKSPACE"
   elif [ -n "$OPENCLAW_SESSION_KEY" ]; then
     agentId=$(echo "$OPENCLAW_SESSION_KEY" | cut -d: -f2)
-    echo "$HOME/.openclaw/workspace-${agentId}"
+    echo "$STATE_DIR/workspace-${agentId}"
   else
-    echo "$HOME/.openclaw/workspace"
+    echo "$STATE_DIR/workspace"
   fi
 }
 
 # 解析参数
 DRY_RUN=false
+NAMESPACE="global"
 ARGS=()
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --dry-run) DRY_RUN=true; shift ;;
+    --namespace)
+      NAMESPACE="$2"; shift 2 ;;
     *)         ARGS+=("$1"); shift ;;
   esac
 done
 
 if [ ${#ARGS[@]} -lt 5 ]; then
-  echo "用法: record.sh [--dry-run] \"<问题>\" \"<踩坑过程>\" \"<正确方案>\" \"<预防>\" \"<tags>\" [area]"
-  echo "  --dry-run  预览将写入的内容，不实际写入"
-  echo "  area 可选: frontend|backend|infra|tests|docs|config (默认: infra)"
+  echo "用法: record.sh [--dry-run] [--namespace global|domain|project] \"<问题>\" \"<踩坑过程>\" \"<正确方案>\" \"<预防>\" \"<tags>\" [namespace]"
+  echo "  --dry-run    预览将写入的内容，不实际写入"
+  echo "  --namespace  写入命名空间: global(默认)|domain|project"
+  echo "  area/domain/project 名由第五个参数指定"
   exit 1
 fi
 
@@ -51,16 +75,71 @@ FAILURES="${ARGS[1]}"
 SOLUTION="${ARGS[2]}"
 PREVENT="${ARGS[3]}"
 TAGS="${ARGS[4]}"
-AREA="${ARGS[5]:-infra}"
+NS_VALUE="${ARGS[5]:-}"
 
-# 去重检查
+# 确定领域/项目名
+AREA="${NS_VALUE:-infra}"
+DOMAIN_TARGET=""
+PROJECT_TARGET=""
+
+case "$NAMESPACE" in
+  domain)
+    DOMAIN_TARGET="${NS_VALUE:-general}"
+    AREA="domain:${DOMAIN_TARGET}"
+    ;;
+  project)
+    PROJECT_TARGET="${NS_VALUE:-default}"
+    AREA="project:${PROJECT_TARGET}"
+    ;;
+  *)
+    AREA="${NS_VALUE:-infra}"
+    ;;
+esac
+
+# 生成 ID（统计所有相关文件中的今日 ID 数量，避免序号撞车）
+generate_id() {
+  local today=$(date +%Y%m%d)
+  local count=0
+  local c
+
+  # 统计 experiences.md 中的
+  c=$(grep -c "\[EXP-${today}-" "$ERRORS_FILE" 2>/dev/null | tr -d '[:space:]')
+  if echo "$c" | grep -qE '^[0-9]+$'; then
+    count=$((count + c))
+  fi
+
+  # 统计 domains/*.md 中的
+  if [ -d "$DOMAINS_DIR" ]; then
+    for f in "$DOMAINS_DIR"/*.md; do
+      [ -f "$f" ] || continue
+      c=$(grep -c "\[EXP-${today}-" "$f" 2>/dev/null | tr -d '[:space:]')
+      if echo "$c" | grep -qE '^[0-9]+$'; then
+        count=$((count + c))
+      fi
+    done
+  fi
+
+  # 统计 projects/*.md 中的
+  if [ -d "$PROJECTS_DIR" ]; then
+    for f in "$PROJECTS_DIR"/*.md; do
+      [ -f "$f" ] || continue
+      c=$(grep -c "\[EXP-${today}-" "$f" 2>/dev/null | tr -d '[:space:]')
+      if echo "$c" | grep -qE '^[0-9]+$'; then
+        count=$((count + c))
+      fi
+    done
+  fi
+
+  local seq=$(printf "%03d" $((count + 1)))
+  echo "EXP-${today}-${seq}"
+}
+
+# 去重检查（仅对 experiences.md）
 check_duplicate() {
   local found_id=""
   local found_summary=""
 
-  # 1. 精确问题文本匹配
   if grep -qF "$PROBLEM" "$ERRORS_FILE" 2>/dev/null; then
-    # 从包含问题的行往回找最近的 EXP-ID
     found_id=$(grep -n -F "$PROBLEM" "$ERRORS_FILE" | head -1 | cut -d: -f1)
     if [ -n "$found_id" ]; then
       found_id=$(sed -n "1,${found_id}p" "$ERRORS_FILE" | grep '^## \[EXP-' | tail -1 | sed 's/## \[\(EXP-[0-9]*-[0-9]*\)\].*/\1/')
@@ -68,9 +147,7 @@ check_duplicate() {
     found_summary="$PROBLEM"
   fi
 
-  # 2. Tags 组合 + 问题关键词重叠去重
   if [ -z "$found_id" ] && [ -f "$ERRORS_FILE" ]; then
-    # 提取所有已有条目
     local prev=""
     local lines=$(grep -n "^## \[EXP-" "$ERRORS_FILE" 2>/dev/null | cut -d: -f1)
     [ -z "$lines" ] && return 1
@@ -79,17 +156,14 @@ check_duplicate() {
       [ -z "$prev" ] && { prev=$line; continue; }
       local block=$(sed -n "${prev},$((line-1))p" "$ERRORS_FILE")
 
-      # 提取已有 Tags
       local exist_tags=$(echo "$block" | grep "^\*\*Tags\*\*:" | sed 's/\*\*Tags\*\*: //' | tr ',' ' ')
       local exist_problem=$(echo "$block" | sed -n '/^### 问题$/{n;p;}')
       local exist_id=$(echo "$block" | grep "^## \[EXP-" | sed 's/## \[\(EXP-[0-9]*-[0-9]*\)\].*/\1/')
 
-      # Tags 完全匹配检查
       local sorted_new=$(echo "$TAGS" | tr ',' '\n' | sed 's/^ *//;s/ *$//' | sort | tr '\n' ',' | sed 's/,$//')
       local sorted_exist=$(echo "$exist_tags" | sed 's/  */ /g' | tr ' ' '\n' | sort | tr '\n' ',' | sed 's/,$//')
 
       if [ "$sorted_new" = "$sorted_exist" ]; then
-        # 关键词重叠检查（>80%）
         local new_words=$(echo "$PROBLEM" | tr ' ' '\n' | grep -v '^$' | sort -u)
         local exist_words=$(echo "$exist_problem" | tr ' ' '\n' | grep -v '^$' | sort -u)
         local total=$(echo "$new_words" | wc -l | tr -d ' ')
@@ -119,18 +193,7 @@ check_duplicate() {
   return 1
 }
 
-# 生成 ID
-generate_id() {
-  local today=$(date +%Y%m%d)
-  local count
-  count=$(grep -c "\[EXP-${today}-" "$ERRORS_FILE" 2>/dev/null || true)
-  count=$(echo "$count" | tr -d ' \n')
-  [ -z "$count" ] && count=0
-  local seq=$(printf "%03d" $((count + 1)))
-  echo "EXP-${today}-${seq}"
-}
-
-init_file
+init_file "$ERRORS_FILE" "# 经验诀窍"
 
 # 去重检查
 if ! $DRY_RUN && check_duplicate; then
@@ -140,7 +203,6 @@ fi
 ID=$(generate_id)
 NOW=$(date '+%Y-%m-%d %H:%M:%S')
 
-# 要写入的内容
 ENTRY="
 
 ## [${ID}] ${PROBLEM}
@@ -149,6 +211,7 @@ ENTRY="
 **Failed-Count**: ≥2
 **Tags**: ${TAGS}
 **Created**: ${NOW}
+**Namespace**: ${NAMESPACE}
 
 ### 问题
 ${PROBLEM}
@@ -165,24 +228,91 @@ ${PREVENT}
 ---
 "
 
+# ============ 写入 experiences.md（v1 主数据） ============
 if $DRY_RUN; then
   echo "=== 预览写入内容 (dry-run) ==="
   echo "$ENTRY"
   echo "=== 目标文件: $ERRORS_FILE ==="
-  exit 0
+else
+  echo "$ENTRY" >> "$ERRORS_FILE"
+  echo "✅ 已写入经验诀窍: ${ID} [${AREA}]"
 fi
 
-# 写入经验诀窍文件
-echo "$ENTRY" >> "$ERRORS_FILE"
-echo "✅ 已写入经验诀窍: ${ID} [${AREA}]"
+# ============ 同步到 corrections.md（v2 纠正日志） ============
+CORRECTION_ENTRY="
 
-# P0: 同步写入 memory/*.md（让原生 memory_search 能搜到）
-WORKSPACE=$(get_workspace)
-MEMORY_DIR="$WORKSPACE/memory"
-MEMORY_FILE="$MEMORY_DIR/$(date +%Y-%m-%d).md"
+## $(date '+%Y-%m-%d')
 
-if [ -d "$MEMORY_DIR" ]; then
-  cat >> "$MEMORY_FILE" << MEMEOF
+### $(date '+%H:%M') — ${NAMESPACE}:${AREA}
+- **纠正:** ${PROBLEM}
+- **正确方案:** ${SOLUTION}
+- **Tags:** ${TAGS}
+- **Count:** 1 (first occurrence)
+- **Source:** ${ID}
+"
+
+if $DRY_RUN; then
+  echo "=== corrections.md 同步 ==="
+  echo "$CORRECTION_ENTRY"
+else
+  if [ ! -f "$CORRECTIONS_FILE" ]; then
+    printf "# 纠正日志\n\n" > "$CORRECTIONS_FILE"
+  fi
+  echo "$CORRECTION_ENTRY" >> "$CORRECTIONS_FILE"
+  echo "✅ 已同步到 corrections.md"
+fi
+
+# ============ 写入 layered 存储（domain/project 命名空间） ============
+if [ "$NAMESPACE" = "domain" ] && [ -n "$DOMAIN_TARGET" ]; then
+  DOMAIN_FILE="$DOMAINS_DIR/${DOMAIN_TARGET}.md"
+  if [ ! -f "$DOMAIN_FILE" ]; then
+    printf "# Domain: %s\n\nInherits: global\n\n## 模式\n\n" "$DOMAIN_TARGET" > "$DOMAIN_FILE"
+  fi
+  DOMAIN_ENTRY="
+### $(date '+%Y-%m-%d') [${ID}]
+- **问题:** ${PROBLEM}
+- **方案:** ${SOLUTION}
+- **预防:** ${PREVENT}
+- **Tags:** ${TAGS}
+"
+  if $DRY_RUN; then
+    echo "=== domain: ${DOMAIN_TARGET} 写入 ==="
+    echo "$DOMAIN_ENTRY"
+  else
+    echo "$DOMAIN_ENTRY" >> "$DOMAIN_FILE"
+    echo "✅ 已写入 domains/${DOMAIN_TARGET}.md"
+  fi
+fi
+
+if [ "$NAMESPACE" = "project" ] && [ -n "$PROJECT_TARGET" ]; then
+  PROJECT_FILE="$PROJECTS_DIR/${PROJECT_TARGET}.md"
+  if [ ! -f "$PROJECT_FILE" ]; then
+    printf "# Project: %s\n\nInherits: global, domains/code\n\n## 模式\n\n" "$PROJECT_TARGET" > "$PROJECT_FILE"
+  fi
+  PROJECT_ENTRY="
+### $(date '+%Y-%m-%d') [${ID}]
+- **问题:** ${PROBLEM}
+- **方案:** ${SOLUTION}
+- **预防:** ${PREVENT}
+- **Tags:** ${TAGS}
+"
+  if $DRY_RUN; then
+    echo "=== project: ${PROJECT_TARGET} 写入 ==="
+    echo "$PROJECT_ENTRY"
+  else
+    echo "$PROJECT_ENTRY" >> "$PROJECT_FILE"
+    echo "✅ 已写入 projects/${PROJECT_TARGET}.md"
+  fi
+fi
+
+# ============ 同步到 workspace memory/*.md（v1 兼容） ============
+if ! $DRY_RUN; then
+  WORKSPACE=$(get_workspace)
+  MEMORY_DIR="$WORKSPACE/memory"
+  MEMORY_FILE_WS="$MEMORY_DIR/$(date +%Y-%m-%d).md"
+
+  if [ -d "$MEMORY_DIR" ]; then
+    cat >> "$MEMORY_FILE_WS" << MEMEOF
 
 ## 📚 经验诀窍 ${ID}: ${PROBLEM}
 <!-- rocky-know-how:${ID} -->
@@ -191,12 +321,16 @@ if [ -d "$MEMORY_DIR" ]; then
 - **正确方案**: ${SOLUTION}
 - **预防**: ${PREVENT}
 - **Tags**: ${TAGS}
+- **Namespace**: ${NAMESPACE}
 
 MEMEOF
-  echo "✅ 已同步到 memory/$(date +%Y-%m-%d).md"
+    echo "✅ 已同步到 memory/$(date +%Y-%m-%d).md"
+  fi
+
+  # 异步晋升检查
+  (
+    WORKSPACE="$WORKSPACE" STATE_DIR="$STATE_DIR" "$SKILL_DIR/promote.sh" >> /dev/null 2>&1 &
+  )
 fi
 
-# 异步晋升检查（传入 workspace 路径）
-(
-  WORKSPACE="$WORKSPACE" "$SKILL_DIR/promote.sh" >> /dev/null 2>&1 &
-)
+$DRY_RUN && echo "=== (dry-run 模式，未实际写入) ==="
