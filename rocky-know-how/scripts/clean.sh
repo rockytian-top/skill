@@ -1,5 +1,5 @@
 #!/bin/bash
-# rocky-know-how 清理工具 v2.0.0
+# rocky-know-how 清理工具 v2.1.0
 # 用法: clean.sh [--test] [--old] [--reindex]
 
 get_state_dir() { [ -n "$OPENCLAW_STATE_DIR" ] && echo "$OPENCLAW_STATE_DIR" || echo "$HOME/.openclaw"; }
@@ -14,13 +14,18 @@ PROJECTS_DIR="$SHARED_DIR/projects"
 
 MODE="${1:-info}"
 
+# 处理 --dry-run 别名（指向 --test-dry-run）
+if [ "$MODE" = "--dry-run" ]; then
+  MODE="--test-dry-run"
+fi
+
 case "$MODE" in
   --test*)
     CLEAN_DRY_RUN=false
-    if [ "$1" = "--test-dry-run" ]; then
+    if [ "$MODE" = "--test-dry-run" ]; then
       CLEAN_DRY_RUN=true
     fi
-    echo "=== 清理测试条目 $( $CLEAN_DRY_RUN && echo '(模拟)' ) ==="
+    echo "=== 清理测试条目 $( $CLEAN_DRY_RUN && echo '(模拟)' || echo '(交互确认模式)') ==="
     TEMP_FILE="/tmp/rocky-know-how-clean-$$.md"
     TEST_IDS_FILE="/tmp/rocky-know-how-test-ids-$$.txt"
     removed=0
@@ -132,7 +137,7 @@ case "$MODE" in
     ;;
 
   --reindex)
-    echo "=== 重新编号 v2.0.0 ==="
+    echo "=== 重新编号 v2.1.0 ==="
     TEMP_FILE="/tmp/rocky-know-how-reindex-$$.md"
     TODAY=$(date +%Y%m%d)
     seq=0
@@ -198,9 +203,9 @@ case "$MODE" in
     ;;
 
   *)
-    echo "用法: clean.sh [--test|--test-dry-run|--old|--reindex|--v2-init]"
-    echo "  --test           清理 Tags 为 test 的条目（含确认提示）"
-    echo "  --test-dry-run   模拟清理测试条目"
+    echo "用法: clean.sh [--test|--dry-run|--test-dry-run|--old|--reindex|--v2-init]"
+    echo "  --test           清理 Tags 为 test 的条目（交互确认模式）"
+    echo "  --dry-run        模拟清理测试条目（等同于 --test-dry-run）"
     echo "  --old            清理旧版残留文件（LEARNINGS.md等）"
     echo "  --reindex        重新编号让ID连续"
     echo "  --v2-init        初始化 v2.0 分层目录结构"

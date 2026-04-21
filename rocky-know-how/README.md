@@ -1,6 +1,6 @@
 # 📚 rocky-know-how
 
-> OpenClaw 经验诀窍技能 — 失败自动搜，解决自动写，经验跨 agent 共享
+> OpenClaw Learning Knowledge Skill — Search on failure, write after solving, learnings shared across agents
 
 [English](./README_EN.md) | 中文
 

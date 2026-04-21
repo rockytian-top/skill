@@ -1,5 +1,5 @@
 #!/bin/bash
-# rocky-know-how 写入经验诀窍 v2.0.0
+# rocky-know-how 写入经验诀窍 v2.1.0
 # 用法: record.sh [--dry-run] [--namespace global|domain|project] "<问题>" "<踩坑过程>" "<正确方案>" "<预防>" "<tags>" [area|domain]
 # 例: record.sh "排查网站只看进程" "第1次:只看进程→报正常" "curl验证" "必须curl" "troubleshooting" infra
 
@@ -62,6 +62,22 @@ while [[ $# -gt 0 ]]; do
   esac
 done
 
+# 校验：位置参数不能以 -- 开头
+# ARGS[0] 以 -- 开头 → 调用者传了未知选项（如 record.sh --tag "..."）
+# ARGS[i]（i>=1）以 -- 开头 → 调用者把选项名当值传了（如 record.sh "..." "..." "..." "..." "--tag"）
+for i in "${!ARGS[@]}"; do
+  if [[ "${ARGS[$i]}" == --* ]]; then
+    if [[ $i -eq 0 ]]; then
+      echo "❌ 未知选项: ${ARGS[0]}"
+      echo "支持的选项: --dry-run, --namespace"
+    else
+      echo "❌ 参数错误: '${ARGS[$i]}' 不是有效的值"
+    fi
+    echo "用法: record.sh [--dry-run] [--namespace global|domain|project] \"<问题>\" \"<踩坑过程>\" \"<正确方案>\" \"<预防>\" \"<tags>\" [area|domain]"
+    exit 1
+  fi
+done
+
 if [ ${#ARGS[@]} -lt 5 ]; then
   echo "用法: record.sh [--dry-run] [--namespace global|domain|project] \"<问题>\" \"<踩坑过程>\" \"<正确方案>\" \"<预防>\" \"<tags>\" [namespace]"
   echo "  --dry-run    预览将写入的内容，不实际写入"
@@ -85,53 +101,45 @@ PROJECT_TARGET=""
 case "$NAMESPACE" in
   domain)
     DOMAIN_TARGET="${NS_VALUE:-general}"
-    AREA="domain:${DOMAIN_TARGET}"
+    AREA="${DOMAIN_TARGET}"
     ;;
   project)
     PROJECT_TARGET="${NS_VALUE:-default}"
-    AREA="project:${PROJECT_TARGET}"
+    AREA="${PROJECT_TARGET}"
     ;;
   *)
     AREA="${NS_VALUE:-infra}"
     ;;
 esac
 
-# 生成 ID（统计所有相关文件中的今日 ID 数量，避免序号撞车）
+# 生成 ID（扫描所有文件中的最大编号，避免序号撞车）
 generate_id() {
   local today=$(date +%Y%m%d)
-  local count=0
-  local c
+  local prefix="EXP-${today}-"
+  local max_seq=0
+  local files
 
-  # 统计 experiences.md 中的
-  c=$(grep -c "\[EXP-${today}-" "$ERRORS_FILE" 2>/dev/null | tr -d '[:space:]')
-  if echo "$c" | grep -qE '^[0-9]+$'; then
-    count=$((count + c))
+  # 收集所有可能含ID的文件
+  files="$ERRORS_FILE"
+  [ -d "$DOMAINS_DIR" ]  && files="$files $(ls "$DOMAINS_DIR"/*.md 2>/dev/null)"
+  [ -d "$PROJECTS_DIR" ] && files="$files $(ls "$PROJECTS_DIR"/*.md 2>/dev/null)"
+  [ -d "$ARCHIVE_DIR" ]  && files="$files $(ls "$ARCHIVE_DIR"/*.md 2>/dev/null)"
+
+  # 用临时文件收集所有 seq，避免子 shell 变量修改丢失问题
+  local tmpfile=$(mktemp)
+  for f in $files; do
+    [ -f "$f" ] || continue
+    grep -oE "${prefix}[0-9]+" "$f" 2>/dev/null | sed "s/${prefix}//" >> "$tmpfile"
+  done
+
+  # 去掉前导零，取最大编号（awk 在主 shell 执行）
+  if [ -s "$tmpfile" ]; then
+    max_seq=$(awk '{gsub(/^0+/,"",$0); if($1+0>max)max=$1+0} END{print max+0}' "$tmpfile")
   fi
+  rm -f "$tmpfile"
 
-  # 统计 domains/*.md 中的
-  if [ -d "$DOMAINS_DIR" ]; then
-    for f in "$DOMAINS_DIR"/*.md; do
-      [ -f "$f" ] || continue
-      c=$(grep -c "\[EXP-${today}-" "$f" 2>/dev/null | tr -d '[:space:]')
-      if echo "$c" | grep -qE '^[0-9]+$'; then
-        count=$((count + c))
-      fi
-    done
-  fi
-
-  # 统计 projects/*.md 中的
-  if [ -d "$PROJECTS_DIR" ]; then
-    for f in "$PROJECTS_DIR"/*.md; do
-      [ -f "$f" ] || continue
-      c=$(grep -c "\[EXP-${today}-" "$f" 2>/dev/null | tr -d '[:space:]')
-      if echo "$c" | grep -qE '^[0-9]+$'; then
-        count=$((count + c))
-      fi
-    done
-  fi
-
-  local seq=$(printf "%03d" $((count + 1)))
-  echo "EXP-${today}-${seq}"
+  local new_seq=$((max_seq + 1))
+  echo "${prefix}$(printf '%03d' $new_seq)"
 }
 
 # 去重检查（仅对 experiences.md）
@@ -163,7 +171,18 @@ check_duplicate() {
       local sorted_new=$(echo "$TAGS" | tr ',' '\n' | sed 's/^ *//;s/ *$//' | sort | tr '\n' ',' | sed 's/,$//')
       local sorted_exist=$(echo "$exist_tags" | sed 's/  */ /g' | tr ' ' '\n' | sort | tr '\n' ',' | sed 's/,$//')
 
-      if [ "$sorted_new" = "$sorted_exist" ]; then
+      # 检查 Tags 重叠度（重叠≥60% 即通过）
+      local new_tag_set=$(echo "$sorted_new" | tr ',' '\n' | grep -v '^$' | sort -u)
+      local exist_tag_set=$(echo "$sorted_exist" | tr ',' '\n' | grep -v '^$' | sort -u)
+      local tag_total=$(echo "$new_tag_set" | wc -l | tr -d ' ')
+      local tag_match=0
+      while IFS= read -r t; do
+        echo "$exist_tag_set" | grep -qF --color=never "$t" && tag_match=$((tag_match+1))
+      done < <(echo "$new_tag_set")
+      [ "$tag_total" -eq 0 ] && tag_total=1
+      local tag_ratio=$((tag_match * 100 / tag_total))
+      if [ "$tag_ratio" -ge 60 ]; then
+        # Tags 重叠度达标，做文字相似度检查（≥70%）
         local new_words=$(echo "$PROBLEM" | tr ' ' '\n' | grep -v '^$' | sort -u)
         local exist_words=$(echo "$exist_problem" | tr ' ' '\n' | grep -v '^$' | sort -u)
         local total=$(echo "$new_words" | wc -l | tr -d ' ')
@@ -173,7 +192,7 @@ check_duplicate() {
           echo "$exist_words" | grep -qF --color=never "$w" && match=$((match+1))
         done < <(echo "$new_words")
         local ratio=$((match * 100 / total))
-        if [ "$ratio" -ge 80 ]; then
+        if [ "$ratio" -ge 70 ]; then
           found_id="$exist_id"
           found_summary="$exist_problem"
           break
@@ -333,4 +352,20 @@ MEMEOF
   )
 fi
 
-$DRY_RUN && echo "=== (dry-run 模式，未实际写入) ==="
+if $DRY_RUN; then
+  echo "=== (dry-run 模式，未实际写入) ==="
+fi
+
+# ============ 向量索引（优雅降级） ============
+if ! $DRY_RUN; then
+  source "$SKILL_DIR/lib/vectors.sh" 2>/dev/null
+  if type vector_check &>/dev/null && vector_check 2>/dev/null; then
+    vector_init "$STATE_DIR"
+    VECTOR_TEXT="${PROBLEM}。${SOLUTION}。Tags: ${TAGS}"
+    if vector_index_add "$ID" "$VECTOR_TEXT" "$AREA" "$NAMESPACE" "$TAGS" 2>/dev/null; then
+      echo "✅ 已同步到向量索引"
+    else
+      echo "⚠️ 向量索引生成失败（不影响写入）"
+    fi
+  fi
+fi

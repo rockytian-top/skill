@@ -1,5 +1,7 @@
 #!/bin/bash
-# rocky-know-how 搜经验诀窍 v2.0.0
+# rocky-know-how 搜经验诀窍 v2.1.0
+SKILL_DIR="$(cd "$(dirname "$0")" && pwd)"
+
 # 用法: search.sh [选项] <关键词1> [关键词2]...
 #       search.sh --all              显示所有
 #       search.sh --preview "关键词"  只显示摘要
@@ -10,6 +12,7 @@
 #       search.sh --global "关键词"   搜所有workspace
 #       search.sh --since YYYY-MM-DD  按日期过滤
 #       search.sh --layer hot|warm|cold  按层搜索
+#       search.sh --semantic "关键词"  语义搜索（基于向量）
 
 MAX_RESULTS=10
 SINCE_DATE=""
@@ -21,6 +24,7 @@ FILTER_AREA=""
 FILTER_DOMAIN=""
 FILTER_PROJECT=""
 FILTER_LAYER=""
+SEMANTIC=false
 KEYWORDS=()
 
 while [[ $# -gt 0 ]]; do
@@ -35,6 +39,7 @@ while [[ $# -gt 0 ]]; do
     --domain)      FILTER_DOMAIN="$2"; shift 2 ;;
     --project)     FILTER_PROJECT="$2"; shift 2 ;;
     --layer)       FILTER_LAYER="$2"; shift 2 ;;
+    --semantic)   SEMANTIC=true; shift ;;
     -h|--help)
       echo "用法: search.sh [选项] <关键词...>"
       echo "  --all              显示所有"
@@ -47,6 +52,7 @@ while [[ $# -gt 0 ]]; do
       echo "  --global           搜所有workspace"
       echo "  --since YYYY-MM-DD 按日期过滤"
       echo "  --max-results N    最多显示N条（默认10）"
+      echo "  --semantic         语义搜索（基于向量）"
       exit 0 ;;
     -*)  echo "未知选项: $1"; exit 1 ;;
     *)   KEYWORDS+=("$1"); shift ;;
@@ -323,8 +329,21 @@ if [ -n "$FILTER_DOMAIN" ]; then
   domain_file="$DOMAINS_DIR/${FILTER_DOMAIN}.md"
   if [ -f "$domain_file" ]; then
     if [ ${#KEYWORDS[@]} -eq 0 ]; then
-      # 无关键词：直接展示文件全部内容
+      # 无关键词：展示 domain 文件 + experiences.md 中 Area 匹配的条目
       cat "$domain_file"
+      echo ""
+      echo "─── Domain: ${FILTER_DOMAIN} (experiences.md 中 Area:${FILTER_DOMAIN} 的条目) ───"
+      if [ -f "$ERRORS_FILE" ]; then
+        awk -v area="$FILTER_DOMAIN" '
+          BEGIN { in_block=0 }
+          /^## \[EXP-/ { id=$0; in_block=1; area_match=0 }
+          /^\*\*Area\*\*:/ { sub(/^\*\*Area\*\*: /,""); if ($0 == area) area_match=1 }
+          /^---$/ && in_block && area_match { print id; in_block=0 }
+          /^---$/ && in_block && !area_match { in_block=0 }
+        ' "$ERRORS_FILE" | while read -r entry; do
+          echo "  $entry"
+        done
+      fi
       exit 0
     else
       # 有关键词：走搜索逻辑
@@ -354,7 +373,7 @@ if [ -n "$FILTER_PROJECT" ]; then
 fi
 
 # 需要关键词或过滤条件
-if [ ${#KEYWORDS[@]} -eq 0 ] && [ -z "$FILTER_TAG" ] && [ -z "$FILTER_AREA" ] && [ -z "$FILTER_DOMAIN" ] && [ -z "$FILTER_PROJECT" ] && [ -z "$FILTER_LAYER" ] && [ -z "$SHOW_ALL" ] && [ -z "$SINCE_DATE" ]; then
+if [ ${#KEYWORDS[@]} -eq 0 ] && [ -z "$FILTER_TAG" ] && [ -z "$FILTER_AREA" ] && [ -z "$FILTER_DOMAIN" ] && [ -z "$FILTER_PROJECT" ] && [ -z "$FILTER_LAYER" ] && [ -z "$SHOW_ALL" ] && [ -z "$SINCE_DATE" ] && ! $SEMANTIC; then
   echo "用法: search.sh [选项] <关键词...>"
   echo "提示: 用 --tag / --area / --domain / --project / --layer 过滤，或输入关键词搜索"
   exit 1
@@ -388,5 +407,51 @@ if [ -d "$PROJECTS_DIR" ]; then
   done
 fi
 
-[ $total_found -eq 0 ] && [ $layered_found -eq 0 ] && echo "经验诀窍未找到相关记录" && exit 1
+# ============ 语义搜索（基于向量） ============
+semantic_found=0
+if $SEMANTIC; then
+  source "$SKILL_DIR/lib/vectors.sh" 2>/dev/null
+  
+  # 检测向量功能是否可用
+  vector_func_exists=false
+  vector_api_available=false
+  
+  if declare -f vector_check >/dev/null 2>&1; then
+    vector_func_exists=true
+    if vector_check; then
+      vector_api_available=true
+    fi
+  fi
+  
+  if ! $vector_func_exists || ! $vector_api_available; then
+    echo "⚠️  向量搜索不可用（LM Studio 未运行或无 embedding 模型），使用关键词搜索"
+  else
+    vector_init "$STATE_DIR"
+    
+    # 首次语义搜索：如果索引为空或不存在，自动构建
+    if [ ! -f "$VECTOR_DIR/index.jsonl" ] || [ ! -s "$VECTOR_DIR/index.jsonl" ]; then
+      echo "📦 首次语义搜索，正在构建向量索引..."
+      vector_reindex_all "$ERRORS_FILE"
+    fi
+    
+    # 合并所有关键词作为查询
+    QUERY=$(IFS=' '; echo "${KEYWORDS[*]}")
+    echo ""
+    echo "─── 语义搜索结果 ───"
+    local_semantic=$(vector_search "$QUERY" 5 0.6)
+    if [ -n "$local_semantic" ]; then
+      echo "$local_semantic" | while IFS='|' read score id area text; do
+        echo "  📊 [$score] $id [$area] $text"
+      done
+      semantic_found=1
+    fi
+  fi
+fi
+
+# 如果关键词和语义搜索都没有结果，退出
+if [ $total_found -eq 0 ] && [ $layered_found -eq 0 ] && [ $semantic_found -eq 0 ]; then
+  echo "经验诀窍未找到相关记录"
+  exit 1
+fi
+
 exit 0

@@ -1,5 +1,5 @@
 #!/bin/bash
-# rocky-know-how Tag 晋升机制 v2.0.0
+# rocky-know-how Tag 晋升机制 v2.1.0
 # 用法: promote.sh
 # 检查 7 天内同一 Tag 出现 ≥3 次，自动晋升到 HOT (memory.md)
 # 环境变量: WORKSPACE, STATE_DIR (由 record.sh 传入)
@@ -17,7 +17,7 @@ TOOLS_FILE="${WORKSPACE:-$(echo "$STATE_DIR/workspace")}/TOOLS.md"
 CUTOFF_DATE=$(date -v-7d +%Y%m%d 2>/dev/null || date -d "7 days ago" +%Y%m%d)
 TODAY=$(date +%Y%m%d)
 
-echo "=== Tag 晋升检查 (v2.0.0) ==="
+echo "=== Tag 晋升检查 (v2.1.0) ==="
 echo "检查周期: ${CUTOFF_DATE} - ${TODAY} (7天窗口)"
 echo "目标 HOT: $MEMORY_FILE"
 echo ""
@@ -113,9 +113,9 @@ if [ -f "$CORRECTIONS_FILE" ]; then
   CORR_PATTERN_FILE="/tmp/rocky-know-how-corr-$$.txt"
 
   # 提取 corrections 中 pending 的模式
-  grep -E "^\- \*\*纠正\*\*:" "$CORRECTIONS_FILE" 2>/dev/null | sed 's/- \*\*纠正\*\*: //' | while IFS= read -r pattern; do
+  grep -E "^\- \*\*纠正:\*\*" "$CORRECTIONS_FILE" 2>/dev/null | sed 's/^- \*\*纠正:\*\* *//' | while IFS= read -r pattern; do
     [ -z "$pattern" ] && continue
-    count=$(grep -c --color=never "纠正.*: ${pattern}" "$CORRECTIONS_FILE" 2>/dev/null || echo "0")
+    count=$(grep -c --color=never "\*\*纠正:\*\*.*${pattern}" "$CORRECTIONS_FILE" 2>/dev/null || echo "0")
     echo "$count | $pattern"
   done > "$CORR_PATTERN_FILE"
 

@@ -1,5 +1,5 @@
 #!/bin/bash
-# rocky-know-how 归档旧条目 v2.0.0
+# rocky-know-how 归档旧条目 v2.1.0
 # 用法: archive.sh [--days N] [--dry-run] [--auto]
 
 DAYS=90
