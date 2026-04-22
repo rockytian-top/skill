@@ -151,7 +151,7 @@ process_entries() {
   # 处理需要降级到 WARM 的条目
   if [ -n "$demote_entries" ]; then
     echo "--- 需要降级到 WARM 的条目 ---"
-    echo "$demote_entries" | while IFS='|' read -r action date content; do
+    while IFS='|' read -r action date content; do
       # 提取 Tag 或 Pattern
       local tag=$(echo "$content" | grep -E "^\- \*\*Tag" | sed 's/.*\*\*Tag:\*\* *//' | head -1)
       local pattern=$(echo "$content" | grep -E "^\- \*\*Pattern" | sed 's/.*\*\*Pattern:\*\* *//' | head -1)
