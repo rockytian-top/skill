@@ -1,5 +1,32 @@
 # CHANGELOG
 
+## [2.4.1] - 2026-04-22
+
+### 优化
+
+- search.sh 恢复作为备用（memory_search 优先）
+- SKILL.md 明确 memory_search 为主，search.sh 为备用
+
+## [2.4.0] - 2026-04-22
+
+### 架构升级
+
+- 强制使用 memory_search 工具
+- 删除 search.sh（已恢复为备用）
+
+## [2.3.0] - 2026-04-22
+
+### 统一数据源
+
+- experiences.md 通过 symlink 挂载到 memory/ 目录
+- memory_search 同时索引 memory/*.md + experiences.md
+
+## [2.2.1] - 2026-04-22
+
+### 语义搜索
+
+- search.sh 默认启用语义搜索（SEMANTIC=true）
+
 ## [2.0.0] - 2026-04-21
 
 ### 架构重构（完全对齐 self-improving）
@@ -27,52 +54,3 @@
 - **promote.sh**：Tag 频率统计，7天≥3次自动晋升 HOT
 - **demote.sh**：30天未使用自动降级
 - **compact.sh**：按层压缩，控制文件大小
-
-### 搜索能力增强
-
-- 多关键词 AND 匹配 + 自动拆分空格分隔的关键词
-- `--tag`（精确标签）、`--domain`（领域）、`--project`（项目）过滤
-- `--all`（跨层搜索）、`--preview`（摘要模式）
-- 匹配度评分排序
-
-### 安装/卸载
-
-- **install.sh**：自动安装到 `~/.openclaw/.learnings/scripts/`
-- **uninstall.sh**：完整清理（保留数据）
-
-## [1.3.0] - 2026-04-17
-
-### Fixed
-- experiences.md 重复头部（3→1）
-- Test entry EXP-20260416-007 removed
-- promote.sh 硬编码路径 → 动态检测
-
-### Added
-- search.sh 相关度评分
-- search.sh --tag / --area / --preview / --since 过滤
-- record.sh --dry-run 预览模式
-- record.sh 增强去重（Tags组合 + 80%关键词重叠）
-- record.sh Dreaming 标记同步
-- import.sh 批量导入
-- archive.sh --auto 自动归档
-- 跨 workspace 共享优化
-
-## [1.2.0] - 2026-04-16
-
-### Added
-- Initial release as rocky-know-how
-- search.sh 多关键词搜索
-- record.sh 写入经验
-- stats.sh 统计面板
-- promote.sh Tag 晋升
-- archive.sh 手动归档
-- clean.sh 清理工具
-- install.sh / uninstall.sh
-- handler.js Bootstrap Hook
-
-## [1.0.0] - 2026-04-16
-
-### Added
-- Forked from pskoett/self-improving-agent v3.0.13
-- Renamed to rocky-know-how（经验诀窍）
-- Chinese localization

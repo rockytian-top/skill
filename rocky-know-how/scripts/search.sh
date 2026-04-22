@@ -24,7 +24,7 @@ FILTER_AREA=""
 FILTER_DOMAIN=""
 FILTER_PROJECT=""
 FILTER_LAYER=""
-SEMANTIC=false
+SEMANTIC=true  # 默认启用语义搜索
 KEYWORDS=()
 
 while [[ $# -gt 0 ]]; do

@@ -1,16 +1,34 @@
 ---
 name: rocky-know-how
 slug: rocky-know-how
-version: 2.1.0
+version: 2.4.1
 homepage: https://clawhub.ai/skills/rocky-know-how
 description: "Learning knowledge skill v2 — Aligns with self-improving. Search learnings when failing 2+ times, write after solving. Layered storage (HOT/WARM/COLD), auto-promotion/demotion, namespace isolation, corrections log, reflections, heartbeat integration."
-changelog: "v2.0.0: Full architecture refactor, aligned with self-improving: layered storage, auto-promotion/demotion, namespace isolation, corrections log, reflections, heartbeat integration. New: demote.sh, compact.sh, index.md, reflections.md, corrections.md, boundaries.md, scaling.md."
+changelog: "v2.4.1: search.sh恢复作为备用，memory_search优先
+
+v2.4.0: 强制使用memory_search工具
+
+v2.3.0: 统一使用memory_search工具(experiences.md通过symlink挂载到memory/目录)
+
+v2.2.1: search.sh默认启用语义搜索
+
+v2.0.0: Full architecture refactor"
 metadata: {"openclaw":{"emoji":"📚","requires":{"bins":[]},"os":["darwin","linux","win32"]}}
 ---
 
+## ⚠️ CRITICAL: Search Via memory_search First
+
+**Primary: Use `memory_search` tool for all experience searches.**
+
+All experiences are indexed via symlink: `memory/experiences.md` → `~/.openclaw/.learnings/experiences.md`
+
+The memory_search tool provides semantic vector search across all memory files.
+
+**Fallback: If memory_search fails, use `search.sh` as backup.**
+
 ## When to Use
 
-- Task failed 2+ times → Search learnings (search.sh)
+- Task failed 2+ times → Search learnings: use `memory_search` tool ONLY
 - Solved the problem → Write lesson (record.sh)
 - Same Tag 3x in 30 days → Promote to HOT (promote.sh)
 - Task completed → Self-reflect (reflections.md)
@@ -107,7 +125,7 @@ Reflection entries follow same promotion rules: 3x successful use → Promote to
 
 | User says | Action |
 |-----------|--------|
-| "search learnings X" | Search all layers (search.sh) |
+| "search learnings X" | Use `memory_search` tool (built-in vector search, indexes memory/*.md + experiences.md via symlink) |
 | "show all learnings" | Display experiences.md |
 | "what did I learn recently?" | Show last 10 from corrections.md |
 | "what patterns exist?" | List memory.md (HOT) |
