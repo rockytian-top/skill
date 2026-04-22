@@ -1,7 +1,7 @@
 /**
  * rocky-know-how Hook for OpenClaw
  *
- * v2.6.0 - 支持 OpenClaw 2026.4.21 新 Hook
+ * v2.7.0 - 支持 OpenClaw 2026.4.21 新 Hook
  * - agent/bootstrap: 启动时注入经验诀窍提醒
  * - before_compaction: 压缩前保存任务状态
  * - after_compaction: 压缩后记录会话总结
@@ -61,7 +61,7 @@ function getLearningsDir(env) {
  */
 function generateReminder(scriptsDir) {
   return `
-## 📚 经验诀窍提醒 (rocky-know-how) v2.6.0
+## 📚 经验诀窍提醒 (rocky-know-how) v2.7.0
 
 你有一个经验诀窍技能。使用规则：
 

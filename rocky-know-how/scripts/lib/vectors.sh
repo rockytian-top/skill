@@ -1,5 +1,5 @@
 #!/bin/bash
-# 向量搜索工具库 v2.6.0
+# 向量搜索工具库 v2.7.0
 # 依赖 LM Studio embedding API
 
 VECTOR_API="${VECTOR_API:-http://localhost:1234/v1/embeddings}"

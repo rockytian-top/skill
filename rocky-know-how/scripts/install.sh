@@ -1,5 +1,5 @@
 #!/bin/bash
-# rocky-know-how 安装脚本 v2.6.0
+# rocky-know-how 安装脚本 v2.7.0
 # 用法: bash install.sh [--with-hook]
 #   --with-hook   自动配置 Hook 到 openclaw.json（需手动重启 gateway）
 # 本脚本创建目录和初始化文件。可选配置 Hook（需显式 --with-hook）。
@@ -113,7 +113,7 @@ else
 fi
 
 echo ""
-echo "✅ v2.6.0 安装完成！"
+echo "✅ v2.7.0 安装完成！"
 echo ""
 echo "📊 存储结构:"
 echo "   $SHARED_DIR/"
@@ -198,7 +198,7 @@ else
 fi
 
 echo ""
-echo "🎉 rocky-know-how v2.6.0 安装完成！"
+echo "🎉 rocky-know-how v2.7.0 安装完成！"
 echo ""
 echo "  搜索: bash $SKILL_DIR/scripts/search.sh \"关键词\""
 echo "  写入: bash $SKILL_DIR/scripts/record.sh ..."
