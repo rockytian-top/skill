@@ -100,17 +100,18 @@ area 可选: frontend|backend|infra|tests|docs|config (默认: infra)
 - \`${scriptsDir}/promote.sh\` — Tag晋升检查
 
 **重要**: 经验诀窍存储在 ~/.openclaw/.learnings/（全局共享），所有 agent 通用。
-`.trim();
+`;
 
-  // 注入虚拟文件
-  if (Array.isArray(event.context.bootstrapFiles)) {
-    event.context.bootstrapFiles.push({
-      path: 'ROCKY_KNOW_HOW_REMINDER.md',
-      content: REMINDER,
-      virtual: true,
+  // 注入到 context
+  if (event.context.systemPrompt !== undefined) {
+    event.context.systemPrompt += REMINDER;
+  } else if (Array.isArray(event.context.messages)) {
+    // 兼容旧版结构
+    event.context.messages.push({
+      role: 'system',
+      content: REMINDER
     });
   }
-};
+}
 
-module.exports = handler;
-module.exports.default = handler;
+module.exports = { handler };
