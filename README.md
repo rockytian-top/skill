@@ -1,6 +1,6 @@
 # rocky-know-how 经验诀窍技能库
 
-**版本**: v2.6.0 | **适用系统**: macOS / Linux / Windows
+**版本**: v2.7.0 | **适用系统**: macOS / Linux / Windows
 
 ---
 
@@ -51,7 +51,7 @@ cd skill/rocky-know-how
 
 ---
 
-## 🔄 v2.6.0 更新
+## 🔄 v2.7.0 更新
 
 ### 支持 OpenClaw 2026.4.21 新 Hook
 
@@ -116,4 +116,4 @@ cd skill/rocky-know-how
 
 ---
 
-_最后更新: 2026-04-22 v2.6.0_
+_最后更新: 2026-04-22 v2.7.0_

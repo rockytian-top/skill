@@ -6,7 +6,7 @@
 
 set -e
 
-VERSION="2.6.0"
+VERSION="2.7.0"
 SKILL_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 
 # 解析参数

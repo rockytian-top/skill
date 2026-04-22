@@ -7,7 +7,7 @@
  * - after_compaction: 压缩后记录会话总结
  * - before_reset: 重置前保存重要信息
  *
- * @version 2.6.0
+ * @version 2.7.0
  */
 
 const { existsSync, readFileSync, writeFileSync, appendFileSync } = require('fs');

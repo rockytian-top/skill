@@ -1,7 +1,7 @@
 ---
 name: rocky-know-how
 slug: rocky-know-how
-version: 2.6.0
+version: 2.7.0
 homepage: https://clawhub.ai/skills/rocky-know-how
 description: "Learning knowledge skill v2 — Aligns with self-improving. Search learnings when failing 2+ times, write after solving. Layered storage (HOT/WARM/COLD), auto-promotion/demotion, namespace isolation, corrections log, reflections, heartbeat integration."
 changelog: "v2.7.0: 支持OpenClaw 2026.4.21新Hook(before_compaction/after_compaction/before_reset)
