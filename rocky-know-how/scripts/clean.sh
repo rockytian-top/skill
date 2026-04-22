@@ -102,31 +102,31 @@ case "$MODE" in
         if [ -f "$CORRECTIONS_FILE" ]; then
           if [ -s "$TEST_IDS_FILE" ]; then
             # 提取 EXP ID 模式 (e.g. EXP-20250101-001)
-            grep -h -oE 'EXP-[0-9]{8}-[0-9]+' "$TEST_IDS_FILE" 2>/dev/null | sort -u | while read -r expid; do
+            while read -r expid; do
               # 删除包含此 EXP ID 的行
               if grep -q "$expid" "$CORRECTIONS_FILE" 2>/dev/null; then
                 grep -v "$expid" "$CORRECTIONS_FILE" > "$CORRECTIONS_FILE.tmp" && mv "$CORRECTIONS_FILE.tmp" "$CORRECTIONS_FILE"
                 echo "  清理: corrections.md 中引用 $expid 的行"
                 cleaned_refs=$((cleaned_refs+1))
               fi
-            done
+            done < <(grep -h -oE 'EXP-[0-9]{8}-[0-9]+' "$TEST_IDS_FILE" 2>/dev/null | sort -u)
           fi
         fi
 
         # 从 domains/ 和 projects/ 中删除引用了已删 EXP ID 的行
         for dir in "$DOMAINS_DIR" "$PROJECTS_DIR"; do
           [ -d "$dir" ] || continue
-          find "$dir" -maxdepth 1 -name "*.md" -type f 2>/dev/null | sort | while read -r f; do
+          while read -r f; do
             if [ -s "$TEST_IDS_FILE" ]; then
-              grep -h -oE 'EXP-[0-9]{8}-[0-9]+' "$TEST_IDS_FILE" 2>/dev/null | sort -u | while read -r expid; do
+              while read -r expid; do
                 if grep -q "$expid" "$f" 2>/dev/null; then
                   grep -v "$expid" "$f" > "$f.tmp" && mv "$f.tmp" "$f"
                   echo "  清理: $(basename "$f") 中引用 $expid 的行"
                   cleaned_refs=$((cleaned_refs+1))
                 fi
-              done
+              done < <(grep -h -oE 'EXP-[0-9]{8}-[0-9]+' "$TEST_IDS_FILE" 2>/dev/null | sort -u)
             fi
-          done
+          done < <(find "$dir" -maxdepth 1 -name "*.md" -type f 2>/dev/null | sort)
         done
 
         [ "$cleaned_refs" -eq 0 ] && echo "  (无孤立引用需清理)"

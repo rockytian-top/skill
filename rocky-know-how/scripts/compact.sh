@@ -96,7 +96,7 @@ merge_similar_entries() {
   local current_tag=""
   local current_entry=""
   
-  echo "$other_entries" | while IFS= read -r line; do
+  while IFS= read -r line; do
     if echo "$line" | grep -qE "^\-\ \*\*Tag"; then
       # 保存前一个条目
       if [ -n "$current_entry" ]; then
@@ -107,7 +107,7 @@ merge_similar_entries() {
     else
       current_entry="$current_entry$line\n"
     fi
-  done
+  done < <(echo "$other_entries")
   if [ -n "$current_entry" ]; then
     merged="$merged$current_entry"
   fi
@@ -383,14 +383,14 @@ if [ -d "$DOMAINS_DIR" ]; then
   for f in "$DOMAINS_DIR"/*.md; do
     [ ! -f "$f" ] && continue
     check_and_compact "$f" "$WARM_LIMIT" "$(basename "$f")"
-  done
+  done < <(echo "$other_entries")
 fi
 
 if [ -d "$PROJECTS_DIR" ]; then
   for f in "$PROJECTS_DIR"/*.md; do
     [ ! -f "$f" ] && continue
     check_and_compact "$f" "$WARM_LIMIT" "$(basename "$f")"
-  done
+  done < <(echo "$other_entries")
 fi
 
 echo ""
