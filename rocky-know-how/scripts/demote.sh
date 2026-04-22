@@ -1,5 +1,5 @@
 #!/bin/bash
-# rocky-know-how 降级检查脚本 v2.1.0
+# rocky-know-how 降级检查脚本 v2.6.0
 # 用法: demote.sh [--dry-run] [--days N]
 # 检查未使用模式，降级到 WARM（30天）或归档到 COLD（90天）
 # 永不删除数据
@@ -21,17 +21,24 @@ while [[ $# -gt 0 ]]; do
   esac
 done
 
-SKILL_DIR="$(cd "$(dirname "$0")" && pwd)"
-get_state_dir() { [ -n "$OPENCLAW_STATE_DIR" ] && echo "$OPENCLAW_STATE_DIR" || echo "$HOME/.openclaw"; }
+SCRIPTS_DIR="$(cd "$(dirname "$0")" && pwd)"
+source "$SCRIPTS_DIR/lib/common.sh"
 STATE_DIR=$(get_state_dir)
-SHARED_DIR="$STATE_DIR/.learnings"
+SHARED_DIR=$(get_shared_dir)
+# R4 fix: 获取降级锁
+LOCK_DIR="$(get_lock_dir demote)"
+if ! acquire_lock "$LOCK_DIR"; then
+  echo "❌ 无法获取降级锁，请稍后重试"
+  exit 1
+fi
+trap 'release_lock "$LOCK_DIR"' EXIT
 MEMORY_FILE="$SHARED_DIR/memory.md"
 INDEX_FILE="$SHARED_DIR/index.md"
 ARCHIVE_DIR="$SHARED_DIR/archive"
 DOMAINS_DIR="$SHARED_DIR/domains"
 PROJECTS_DIR="$SHARED_DIR/projects"
 
-echo "=== 降级检查 (v2.1.0) ==="
+echo "=== 降级检查 (v2.6.0) ==="
 echo "降级阈值: ${DAYS_THRESHOLD} 天"
 echo "归档阈值: ${ARCHIVE_THRESHOLD} 天"
 echo ""
@@ -137,7 +144,7 @@ process_entries() {
   local archive_count=0
   
   # 获取所有条目
-  entries_data=$(get_entries_with_dates "$MEMORY_FILE")
+  local entries_data=$(get_entries_with_dates "$MEMORY_FILE")
   
   if [ -z "$entries_data" ]; then
     echo "  无降级/归档候选"
@@ -145,11 +152,14 @@ process_entries() {
   fi
   
   # 分类处理
-  demote_entries=$(echo "$entries_data" | grep "^DEMOTE|")
-  archive_entries=$(echo "$entries_data" | grep "^ARCHIVE|")
+  local demote_entries=$(echo "$entries_data" | grep "^DEMOTE|")
+  local archive_entries=$(echo "$entries_data" | grep "^ARCHIVE|")
   
   # 处理需要降级到 WARM 的条目
   if [ -n "$demote_entries" ]; then
+    if ! $DRY_RUN; then
+      backup_file "$MEMORY_FILE"
+    fi
     echo "--- 需要降级到 WARM 的条目 ---"
     while IFS='|' read -r action date content; do
       # 提取 Tag 或 Pattern
@@ -157,13 +167,12 @@ process_entries() {
       local pattern=$(echo "$content" | grep -E "^\- \*\*Pattern" | sed 's/.*\*\*Pattern:\*\* *//' | head -1)
       local identifier="${tag}${pattern}"
       [ -z "$identifier" ] && identifier="unknown"
-      
+      # P1 fix: 提取第一行内容用于精确匹配，防止同日期多条目被误删
+      local first_line=$(echo "$content" | sed 1q)
+
       echo "  📤 降级: ${identifier} (最后更新: ${date})"
-      
+
       if ! $DRY_RUN; then
-        # 备份 memory.md
-        backup_file "$MEMORY_FILE"
-        
         # 确定目标文件
         local domain_file="${DOMAINS_DIR}/global.md"
         if [ ! -f "$domain_file" ]; then
@@ -174,56 +183,59 @@ process_entries() {
           echo "## 模式" >> "$domain_file"
           echo "" >> "$domain_file"
         fi
-        
+
         # 提取实际的条目内容（去掉 DEMOTE|xxx| 前缀）
-        local entry_content=$(echo "$content" | sed '1d')
-        
+        # R3 fix: printf 替代 echo 防止 -e/-n 被当选项
+        local entry_content=$(printf '%s' "$content" | sed '1d')
+
         # 追加到 WARM 层
-        echo "$entry_content" >> "$domain_file"
+        printf '%s\n' "$entry_content" >> "$domain_file"
         echo "  ✅ 已追加到: $domain_file (WARM)"
-        
+
         # 更新索引
         update_index "DEMOTE" "$identifier" "$domain_file"
-        
-        # 从 memory.md 移除该条目
-        # 使用 sed 删除该条目（从 ## date 到下一个 ## 之前）
-        local tmp_file="/tmp/rocky-know-how-demote-$$.md"
-        awk -v target_date="$date" -v demo_marker="$DEMOTE_MARKER" '
+
+        # P4 fix: 使用 mktemp 替代固定路径
+        local tmp_file
+        tmp_file=$(mktemp /tmp/rocky-know-how.XXXXXX)
+        # P1 fix: 同时匹配日期 AND 第一行内容，确保精确移除（防止同日期多条目被误删）
+        # 注意: 当遇到 ## YYYY-MM-DD 时，block_buffer 是前一条目内容，$0 是当前条目第一行
+        # 所以用 $0 而非 block_buffer 来匹配 target_first_line
+        awk -v target_date="$date" -v target_first_line="$first_line" '
           BEGIN { in_entry=0; skip_entry=0 }
           /^## [0-9]{4}-[0-9]{2}-[0-9]{2}/ {
-            if (in_entry && !skip_entry) {
-              # 输出前一个条目
-              print prev_line
+            if (in_entry && !skip_entry && block_buffer != "") {
+              print block_buffer
             }
             if (match($0, /## ([0-9]{4}-[0-9]{2}-[0-9]{2})/)) {
               entry_date_str = substr($0, RSTART+3, RLENGTH-3)
-              if (entry_date_str == target_date) {
+              # P1 fix: 用 $0（当前条目第一行）匹配 target_first_line，而非 block_buffer（前一条目内容）
+              if (entry_date_str == target_date && $0 == target_first_line) {
                 skip_entry=1
               } else {
                 skip_entry=0
-                prev_line=$0
+                block_buffer=$0
               }
             }
             in_entry=1
             next
           }
           /^## / {
-            if (in_entry && !skip_entry) {
-              print prev_line
+            if (in_entry && !skip_entry && block_buffer != "") {
+              print block_buffer
             }
-            in_entry=0; skip_entry=0
+            in_entry=0; skip_entry=0; block_buffer=""
             next
           }
           in_entry && !skip_entry {
-            print prev_line
-            prev_line=$0
+            block_buffer = block_buffer "\n" $0
             next
           }
           in_entry && skip_entry { next }
           { print }
         ' "$MEMORY_FILE" > "$tmp_file"
         mv "$tmp_file" "$MEMORY_FILE"
-        
+
         demote_count=$((demote_count + 1))
       fi
     done < <(echo "$demote_entries")
@@ -231,6 +243,9 @@ process_entries() {
   
   # 处理需要归档到 COLD 的条目
   if [ -n "$archive_entries" ]; then
+    if ! $DRY_RUN; then
+      backup_file "$MEMORY_FILE"
+    fi
     echo ""
     echo "--- 需要归档到 COLD 的条目 ---"
     while IFS='|' read -r action date content; do
@@ -239,67 +254,71 @@ process_entries() {
       local pattern=$(echo "$content" | grep -E "^\- \*\*Pattern" | sed 's/.*\*\*Pattern:\*\* *//' | head -1)
       local identifier="${tag}${pattern}"
       [ -z "$identifier" ] && identifier="unknown"
-      
+      # P1 fix: 提取第一行内容用于精确匹配，防止同日期多条目被误删
+      local first_line=$(echo "$content" | sed 1q)
+
       echo "  📦 归档: ${identifier} (最后更新: ${date})"
-      
+
       if ! $DRY_RUN; then
-        # 备份 memory.md
-        backup_file "$MEMORY_FILE"
-        
         # 创建归档文件
         local archive_file="${ARCHIVE_DIR}/entry.${date}.$(date +%Y%m%d-%H%M%S).md"
-        
+
         # 提取实际的条目内容（去掉 ARCHIVE|xxx| 前缀）
-        local entry_content=$(echo "$content" | sed '1d')
-        
+        # R3 fix: printf 替代 echo 防止 -e/-n 被当选项
+        local entry_content=$(printf '%s' "$content" | sed '1d')
+
         # 写入归档
-        echo "# 归档条目: ${identifier}" > "$archive_file"
-        echo "原始日期: ${date}" >> "$archive_file"
-        echo "归档日期: $(date '+%Y-%m-%d')" >> "$archive_file"
-        echo "" >> "$archive_file"
-        echo "$entry_content" >> "$archive_file"
+        printf '# 归档条目: %s\n' "$identifier" > "$archive_file"
+        printf '原始日期: %s\n' "$date" >> "$archive_file"
+        printf '归档日期: %s\n' "$(date '+%Y-%m-%d')" >> "$archive_file"
+        printf '\n' >> "$archive_file"
+        printf '%s\n' "$entry_content" >> "$archive_file"
         echo "  ✅ 已归档到: $archive_file"
-        
+
         # 更新索引
         update_index "ARCHIVE" "$identifier" "$archive_file"
-        
-        # 从 memory.md 移除该条目
-        local tmp_file="/tmp/rocky-know-how-archive-$$.md"
-        awk -v target_date="$date" '
+
+        # P4 fix: 使用 mktemp 替代固定路径
+        local tmp_file
+        tmp_file=$(mktemp /tmp/rocky-know-how.XXXXXX)
+        # P1 fix: 同时匹配日期 AND 第一行内容，确保精确移除（防止同日期多条目被误删）
+        # 注意: 当遇到 ## YYYY-MM-DD 时，block_buffer 是前一条目内容，$0 是当前条目第一行
+        # 所以用 $0 而非 block_buffer 来匹配 target_first_line
+        awk -v target_date="$date" -v target_first_line="$first_line" '
           BEGIN { in_entry=0; skip_entry=0 }
           /^## [0-9]{4}-[0-9]{2}-[0-9]{2}/ {
-            if (in_entry && !skip_entry) {
-              print prev_line
+            if (in_entry && !skip_entry && block_buffer != "") {
+              print block_buffer
             }
             if (match($0, /## ([0-9]{4}-[0-9]{2}-[0-9]{2})/)) {
               entry_date_str = substr($0, RSTART+3, RLENGTH-3)
-              if (entry_date_str == target_date) {
+              # P1 fix: 用 $0（当前条目第一行）匹配 target_first_line，而非 block_buffer（前一条目内容）
+              if (entry_date_str == target_date && $0 == target_first_line) {
                 skip_entry=1
               } else {
                 skip_entry=0
-                prev_line=$0
+                block_buffer=$0
               }
             }
             in_entry=1
             next
           }
           /^## / {
-            if (in_entry && !skip_entry) {
-              print prev_line
+            if (in_entry && !skip_entry && block_buffer != "") {
+              print block_buffer
             }
-            in_entry=0; skip_entry=0
+            in_entry=0; skip_entry=0; block_buffer=""
             next
           }
           in_entry && !skip_entry {
-            print prev_line
-            prev_line=$0
+            block_buffer = block_buffer "\n" $0
             next
           }
           in_entry && skip_entry { next }
           { print }
         ' "$MEMORY_FILE" > "$tmp_file"
         mv "$tmp_file" "$MEMORY_FILE"
-        
+
         archive_count=$((archive_count + 1))
       fi
     done < <(echo "$archive_entries")

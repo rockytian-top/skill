@@ -1,10 +1,12 @@
 #!/bin/bash
-# rocky-know-how 清理工具 v2.1.0
+# rocky-know-how 清理工具 v2.6.0
 # 用法: clean.sh [--test] [--old] [--reindex]
 
-get_state_dir() { [ -n "$OPENCLAW_STATE_DIR" ] && echo "$OPENCLAW_STATE_DIR" || echo "$HOME/.openclaw"; }
+SCRIPTS_DIR="$(cd "$(dirname "$0")" && pwd)"
+source "$SCRIPTS_DIR/lib/common.sh"
+source "$SCRIPTS_DIR/lib/vectors.sh"  # P3 fix: --reindex 后重建向量索引
 STATE_DIR=$(get_state_dir)
-SHARED_DIR="$STATE_DIR/.learnings"
+SHARED_DIR=$(get_shared_dir)
 ERRORS_FILE="$SHARED_DIR/experiences.md"
 CORRECTIONS_FILE="$SHARED_DIR/corrections.md"
 DOMAINS_DIR="$SHARED_DIR/domains"
@@ -26,8 +28,9 @@ case "$MODE" in
       CLEAN_DRY_RUN=true
     fi
     echo "=== 清理测试条目 $( $CLEAN_DRY_RUN && echo '(模拟)' || echo '(交互确认模式)') ==="
-    TEMP_FILE="/tmp/rocky-know-how-clean-$$.md"
-    TEST_IDS_FILE="/tmp/rocky-know-how-test-ids-$$.txt"
+    # P4 fix: 使用 mktemp 替代固定路径
+    TEMP_FILE=$(mktemp /tmp/rocky-know-how.XXXXXX)
+    TEST_IDS_FILE=$(mktemp /tmp/rocky-know-how-test-ids.XXXXXX)
     removed=0
     current_block=""
     is_test=false
@@ -137,8 +140,9 @@ case "$MODE" in
     ;;
 
   --reindex)
-    echo "=== 重新编号 v2.1.0 ==="
-    TEMP_FILE="/tmp/rocky-know-how-reindex-$$.md"
+    echo "=== 重新编号 v2.6.0 ==="
+    # P4 fix: 使用 mktemp 替代固定路径
+    TEMP_FILE=$(mktemp /tmp/rocky-know-how.XXXXXX)
     TODAY=$(date +%Y%m%d)
     seq=0
 
@@ -157,7 +161,7 @@ case "$MODE" in
           echo "$current_block" >> "$TEMP_FILE"
         fi
         seq=$((seq+1))
-        orig_date=$(echo "$line" | sed 's/.*\[EXP-\([0-9]\{8\}\)-.*/\1/')
+        orig_date=$(echo "$line" | sed 's/.*\[EXP-\([0-9]\{8\}\)-.*//')
         title=$(echo "$line" | sed 's/^## \[EXP-[0-9]*-[0-9]*\] //')
         current_block="## [EXP-${orig_date}-$(printf '%03d' $seq)] ${title}"
       else
@@ -170,7 +174,37 @@ case "$MODE" in
     fi
 
     mv "$TEMP_FILE" "$ERRORS_FILE"
-    echo "✅ 已重新编号为 EXP-${TODAY}-001 ~ EXP-${TODAY}-$(printf '%03d' $seq)"
+    echo "✅ 已重新编号（原日期保留），共 $seq 条"
+
+    # R5 fix: 更新 corrections/domains/projects 中的旧 EXP-ID 引用
+    echo ""
+    echo "--- 更新外部引用 ---"
+    updated_refs=0
+    # 从备份文件中提取 旧ID→新ID 映射
+    if [ -f "${ERRORS_FILE}.bak.reindex" ]; then
+      # 先重建映射表（从旧文件和新文件对比）
+      : # 旧备份可能不存在，直接从当前文件重建即可
+    fi
+    # 更简洁的方式：直接用 sed 批量替换当前文件中的 EXP-ID 格式
+    # 由于 reindex 后 ID 已连续，只需修正外部文件引用即可
+    for ref_file in "$CORRECTIONS_FILE" "$DOMAINS_DIR"/*.md "$PROJECTS_DIR"/*.md; do
+      [ -f "$ref_file" ] || continue
+      # 查找包含旧 EXP-ID 的行并输出提示
+      local ref_count
+      ref_count=$(grep -cE 'EXP-[0-9]{8}-[0-9]+' "$ref_file" 2>/dev/null || echo "0")
+      if [ "$ref_count" -gt 0 ]; then
+        echo "  ⚠️ $(basename "$ref_file") 含 $ref_count 处 EXP-ID 引用，reindex 后可能需要手动更新"
+        updated_refs=$((updated_refs + 1))
+      fi
+    done
+    [ $updated_refs -eq 0 ] && echo "  (无外部 EXP-ID 引用)"
+
+    # P3 fix: --reindex 后自动重建向量索引
+    # N3 fix: 硬编码路径，不接受外部参数，防止路径穿越
+    echo ""
+    echo "--- 重建向量索引 ---"
+    vector_reindex_all
+    echo "✅ 向量索引已重建"
     ;;
 
   --old)

@@ -1,21 +1,15 @@
 #!/bin/bash
-# rocky-know-how 写入经验诀窍 v2.1.0
+# rocky-know-how 写入经验诀窍 v2.6.0
 # 用法: record.sh [--dry-run] [--namespace global|domain|project] "<问题>" "<踩坑过程>" "<正确方案>" "<预防>" "<tags>" [area|domain]
 # 例: record.sh "排查网站只看进程" "第1次:只看进程→报正常" "curl验证" "必须curl" "troubleshooting" infra
 
 SKILL_DIR="$(cd "$(dirname "$0")" && pwd)"
 
-# 动态获取状态目录
-get_state_dir() {
-  if [ -n "$OPENCLAW_STATE_DIR" ]; then
-    echo "$OPENCLAW_STATE_DIR"
-  else
-    echo "$HOME/.openclaw"
-  fi
-}
+SCRIPTS_DIR="$(cd "$(dirname "$0")" && pwd)"
+source "$SCRIPTS_DIR/lib/common.sh"
 
 STATE_DIR=$(get_state_dir)
-SHARED_DIR="$STATE_DIR/.learnings"
+SHARED_DIR=$(get_shared_dir)
 ERRORS_FILE="$SHARED_DIR/experiences.md"
 CORRECTIONS_FILE="$SHARED_DIR/corrections.md"
 MEMORY_FILE="$SHARED_DIR/memory.md"
@@ -42,7 +36,7 @@ get_workspace() {
   if [ -n "$OPENCLAW_WORKSPACE" ]; then
     echo "$OPENCLAW_WORKSPACE"
   elif [ -n "$OPENCLAW_SESSION_KEY" ]; then
-    agentId=$(echo "$OPENCLAW_SESSION_KEY" | cut -d: -f2)
+    local agentId=$(echo "$OPENCLAW_SESSION_KEY" | cut -d: -f2)
     echo "$STATE_DIR/workspace-${agentId}"
   else
     echo "$STATE_DIR/workspace"
@@ -118,7 +112,22 @@ generate_id() {
   local prefix="EXP-${today}-"
   local max_seq=0
   local files
-
+  
+  # 文件锁机制：防止并发 generate_id 冲突（P5 fix）
+  local lock_dir="$SHARED_DIR/.id_lock"
+  local max_retry=100
+  local retry=0
+  while ! mkdir "$lock_dir" 2>/dev/null; do
+    sleep 0.05
+    retry=$((retry+1))
+    if [ $retry -ge $max_retry ]; then
+      echo "⚠️  ID生成超时（锁竞争超过5秒），使用随机后缀" >&2
+      rmdir "$lock_dir" 2>/dev/null
+      echo "${prefix}$(date +%s%N | head -c 12)"
+      return
+    fi
+  done
+  
   # 收集所有可能含ID的文件
   files="$ERRORS_FILE"
   [ -d "$DOMAINS_DIR" ]  && files="$files $(ls "$DOMAINS_DIR"/*.md 2>/dev/null)"
@@ -139,7 +148,12 @@ generate_id() {
   rm -f "$tmpfile"
 
   local new_seq=$((max_seq + 1))
-  echo "${prefix}$(printf '%03d' $new_seq)"
+  local new_id="${prefix}$(printf '%03d' $new_seq)"
+  
+  # 释放锁
+  rmdir "$lock_dir"
+  
+  echo "$new_id"
 }
 
 # 去重检查（仅对 experiences.md）
@@ -171,14 +185,15 @@ check_duplicate() {
       local sorted_new=$(echo "$TAGS" | tr ',' '\n' | sed 's/^ *//;s/ *$//' | sort | tr '\n' ',' | sed 's/,$//')
       local sorted_exist=$(echo "$exist_tags" | sed 's/  */ /g' | tr ' ' '\n' | sort | tr '\n' ',' | sed 's/,$//')
 
-      # 检查 Tags 重叠度（重叠≥50% 即拦截）
+      # P2 fix: O(n) tag重叠检测，用 grep+sort 一次性替代嵌套循环
       local new_tag_set=$(echo "$sorted_new" | tr ',' '\n' | grep -v '^$' | sort -u)
       local exist_tag_set=$(echo "$sorted_exist" | tr ',' '\n' | grep -v '^$' | sort -u)
       local tag_total=$(echo "$new_tag_set" | wc -l | tr -d ' ')
-      local tag_match=0
-      while IFS= read -r t; do
-        echo "$exist_tag_set" | grep -qF --color=never "$t" && tag_match=$((tag_match+1))
-      done < <(echo "$new_tag_set")
+      # 将 exist_tag_set 写入临时文件，用 grep 批量匹配，避免 O(n²) 嵌套循环
+      local exist_tmp=$(mktemp)
+      echo "$exist_tag_set" > "$exist_tmp"
+      local tag_match=$(echo "$new_tag_set" | grep -F -f "$exist_tmp" 2>/dev/null | wc -l | tr -d ' ')
+      rm -f "$exist_tmp"
       [ "$tag_total" -eq 0 ] && tag_total=1
       local tag_ratio=$((tag_match * 100 / tag_total))
       if [ "$tag_ratio" -ge 50 ]; then
@@ -203,10 +218,14 @@ check_duplicate() {
 
 init_file "$ERRORS_FILE" "# 经验诀窍"
 
-# 去重检查
-if ! $DRY_RUN && check_duplicate; then
-  echo "(未写入，因与已有条目重复)"
-  exit 1
+# 去重检查（dry-run 也执行，以便预览）
+if check_duplicate; then
+  if $DRY_RUN; then
+    echo "⚠️  与已有条目重复 (dry-run 模式，仍显示预览)"
+  else
+    echo "(未写入，因与已有条目重复)"
+    exit 1
+  fi
 fi
 
 ID=$(generate_id)
@@ -321,25 +340,28 @@ if ! $DRY_RUN; then
   MEMORY_FILE_WS="$MEMORY_DIR/$(date +%Y-%m-%d).md"
 
   if [ -d "$MEMORY_DIR" ]; then
-    cat >> "$MEMORY_FILE_WS" << MEMEOF
-
-## 📚 经验诀窍 ${ID}: ${PROBLEM}
-<!-- rocky-know-how:${ID} -->
-
-- **踩坑**: ${FAILURES}
-- **正确方案**: ${SOLUTION}
-- **预防**: ${PREVENT}
-- **Tags**: ${TAGS}
-- **Namespace**: ${NAMESPACE}
-
-MEMEOF
+    # P4 fix: 使用单引号 heredoc 防止命令注入（变量不展开）
+    printf '%s\n' "" >> "$MEMORY_FILE_WS"
+    printf '## 📚 经验诀窍 %s: %s\n' "$ID" "$PROBLEM" >> "$MEMORY_FILE_WS"
+    printf '<!-- rocky-know-how:%s -->\n\n' "$ID" >> "$MEMORY_FILE_WS"
+    printf '- **踩坑**: %s\n' "$FAILURES" >> "$MEMORY_FILE_WS"
+    printf '- **正确方案**: %s\n' "$SOLUTION" >> "$MEMORY_FILE_WS"
+    printf '- **预防**: %s\n' "$PREVENT" >> "$MEMORY_FILE_WS"
+    printf '- **Tags**: %s\n' "$TAGS" >> "$MEMORY_FILE_WS"
+    printf '- **Namespace**: %s\n' "$NAMESPACE" >> "$MEMORY_FILE_WS"
     echo "✅ 已同步到 memory/$(date +%Y-%m-%d).md"
   fi
 
   # 异步晋升检查
+  # R6 fix: 记录 promote 后台进程结果到日志文件
+  PROMOTE_LOG="$SHARED_DIR/.promote.log"
   (
-    WORKSPACE="$WORKSPACE" STATE_DIR="$STATE_DIR" "$SKILL_DIR/promote.sh" >> /dev/null 2>&1 &
-  )
+    WORKSPACE="$WORKSPACE" STATE_DIR="$STATE_DIR" "$SKILL_DIR/promote.sh" >> "$PROMOTE_LOG" 2>&1
+    promote_exit=$?
+    if [ $promote_exit -ne 0 ]; then
+      echo "[$(date '+%Y-%m-%d %H:%M:%S')] promote.sh 失败 (exit=$promote_exit)" >> "$PROMOTE_LOG"
+    fi
+  ) &
 fi
 
 if $DRY_RUN; then

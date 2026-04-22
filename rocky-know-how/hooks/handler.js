@@ -35,16 +35,17 @@ function findScriptsDir(sessionKey, env) {
   const home = env.HOME || process.env.HOME || '~';
   const workspace = getWorkspace(sessionKey, env);
   const candidates = [
-    join(workspace, 'skills', 'rocky-know-how', 'skills', 'rocky-know-how', 'scripts'),
     join(workspace, 'skills', 'rocky-know-how', 'scripts'),
     join(workspace, 'scripts'),
     sessionKey ? join(home, '.openclaw', 'workspace-' + sessionKey.split(':')[1], 'skills', 'rocky-know-how', 'scripts') : null,
+    join(home, '.openclaw', 'skills', 'rocky-know-how', 'scripts'),
     join(home, '.openclaw', 'shared-skills', 'rocky-know-how', 'scripts'),
   ];
   for (const dir of candidates) {
     if (dir && existsSync(join(dir, 'search.sh'))) return dir;
   }
-  return join(workspace, 'skills', 'rocky-know-how', 'skills', 'rocky-know-how', 'scripts');
+  // P7 fix: 删除错误的嵌套 fallback，使用合理的 home 路径兜底
+  return join(home, '.openclaw', 'skills', 'rocky-know-how', 'scripts');
 }
 
 /**

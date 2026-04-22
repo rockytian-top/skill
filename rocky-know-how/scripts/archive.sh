@@ -1,5 +1,5 @@
 #!/bin/bash
-# rocky-know-how 归档旧条目 v2.1.0
+# rocky-know-how 归档旧条目 v2.6.0
 # 用法: archive.sh [--days N] [--dry-run] [--auto]
 
 DAYS=90
@@ -21,11 +21,20 @@ while [[ $# -gt 0 ]]; do
   esac
 done
 
-get_state_dir() { [ -n "$OPENCLAW_STATE_DIR" ] && echo "$OPENCLAW_STATE_DIR" || echo "$HOME/.openclaw"; }
+SCRIPTS_DIR="$(cd "$(dirname "$0")" && pwd)"
+source "$SCRIPTS_DIR/lib/common.sh"
 STATE_DIR=$(get_state_dir)
-SHARED_DIR="$STATE_DIR/.learnings"
+SHARED_DIR=$(get_shared_dir)
 ERRORS_FILE="$SHARED_DIR/experiences.md"
 ARCHIVE_DIR="$SHARED_DIR/archive"
+
+# R4 fix: 获取归档锁
+LOCK_DIR="$(get_lock_dir archive)"
+if ! acquire_lock "$LOCK_DIR"; then
+  echo "❌ 无法获取归档锁，请稍后重试"
+  exit 1
+fi
+trap 'release_lock "$LOCK_DIR"' EXIT
 
 [ ! -f "$ERRORS_FILE" ] && exit 0
 
@@ -59,7 +68,8 @@ if $AUTO; then
   BACKUP_FILE="$ARCHIVE_MONTH_DIR/experiences-$(date +%Y%m%d-%H%M%S).md"
   cp "$ERRORS_FILE" "$BACKUP_FILE"
 
-  TEMP_FILE="/tmp/rocky-know-how-archive-$$.md"
+  # P4 fix: 使用 mktemp 替代固定路径
+  TEMP_FILE=$(mktemp /tmp/rocky-know-how.XXXXXX)
   {
     echo "# 经验诀窍"
     echo ""
@@ -77,8 +87,7 @@ if $AUTO; then
       date=$(extract_date "$line")
       in_old=false; is_old "$date" && in_old=true
     else
-      current_block="${current_block}
-${line}"
+      current_block="${current_block}"$'\n'"${line}"
     fi
   done < "$ERRORS_FILE"
 
@@ -119,7 +128,8 @@ fi
 BACKUP_FILE="$ARCHIVE_MONTH_DIR/experiences-$(date +%Y%m%d-%H%M%S).md"
 cp "$ERRORS_FILE" "$BACKUP_FILE"
 
-TEMP_FILE="/tmp/rocky-know-how-archive-$$.md"
+# P4 fix: 使用 mktemp 替代固定路径
+TEMP_FILE=$(mktemp /tmp/rocky-know-how.XXXXXX)
 {
   echo "# 经验诀窍"
   echo ""

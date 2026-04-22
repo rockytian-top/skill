@@ -1,5 +1,5 @@
 #!/bin/bash
-# rocky-know-how 从 memory/*.md 导入历史经验 v2.1.0
+# rocky-know-how 从 memory/*.md 导入历史经验 v2.6.0
 # 用法: import.sh [--dir /path/to/memory] [--dry-run] [--keywords "kw1,kw2"]
 
 MEMORY_DIR=""
@@ -22,9 +22,9 @@ while [[ $# -gt 0 ]]; do
 done
 
 SKILL_DIR="$(cd "$(dirname "$0")" && pwd)"
-get_state_dir() { [ -n "$OPENCLAW_STATE_DIR" ] && echo "$OPENCLAW_STATE_DIR" || echo "$HOME/.openclaw"; }
+source "$SKILL_DIR/lib/common.sh"
 STATE_DIR=$(get_state_dir)
-SHARED_DIR="$STATE_DIR/.learnings"
+SHARED_DIR=$(get_shared_dir)
 ERRORS_FILE="$SHARED_DIR/experiences.md"
 CORRECTIONS_FILE="$SHARED_DIR/corrections.md"
 
@@ -44,7 +44,7 @@ fi
 
 [ ! -d "$MEMORY_DIR" ] && echo "❌ memory 目录不存在: $MEMORY_DIR" && exit 1
 
-echo "=== 导入经验诀窍 v2.1.0 ==="
+echo "=== 导入经验诀窍 v2.6.0 ==="
 echo "扫描目录: $MEMORY_DIR"
 $DRY_RUN && echo "模式: 预览（dry-run）"
 echo ""
@@ -111,7 +111,12 @@ for para_file in "$TMPDIR_IMPORT"/para_*.txt; do
 
   para_len=${#para}
   [ "$para_len" -lt 20 ] && continue
-  [ "$para_len" -gt 500 ] && continue
+  # N4 fix: 提升限制到2000字，超长时输出警告而非静默丢弃
+  if [ "$para_len" -gt 2000 ]; then
+    echo "  ⚠️  跳过（${para_len}字>2000字限制）: $(echo "$para" | head -c 40)"
+    skipped=$((skipped+1))
+    continue
+  fi
 
   first_line=$(echo "$para" | head -1 | head -c 50)
   if grep -qF --color=never "$first_line" "$ERRORS_FILE" 2>/dev/null; then
@@ -147,31 +152,11 @@ for para_file in "$TMPDIR_IMPORT"/para_*.txt; do
   if $DRY_RUN; then
     echo "  📌 将导入: $ID - $title (${para_len}字)"
   else
-    cat >> "$ERRORS_FILE" << ENTRY
-
-## [${ID}] ${title}
-
-**Area**: ${area}
-**Failed-Count**: ≥2
-**Tags**: ${tags}
-**Created**: ${NOW}
-**Source**: import from ${source_name}
-**Namespace**: global
-
-### 问题
-${title}
-
-### 踩坑过程
-（从历史记录导入）
-
-### 正确方案
-${para}
-
-### 预防
-（待补充）
-
----
-ENTRY
+    # P2 fix: 使用 quoted heredoc 防止变量展开，避免 heredoc 注入
+    # 单独用 printf 写入需要展开的 shell 变量，再用 quoted heredoc 写入用户内容
+    printf '%s\n\n## [%s] %s\n\n**Area**: %s\n**Failed-Count**: ≥2\n**Tags**: %s\n**Created**: %s\n**Source**: import from %s\n**Namespace**: global\n\n### 问题\n%s\n\n### 踩坑过程\n（从历史记录导入）\n\n### 正确方案\n' \
+      '' "$ID" "$title" "$area" "$tags" "$NOW" "$source_name" "$title" >> "$ERRORS_FILE"
+    printf '%s\n\n### 预防\n（待补充）\n\n---\n' "$para" >> "$ERRORS_FILE"
     echo "  ✅ 已导入: $ID - $title (${para_len}字)"
   fi
 done

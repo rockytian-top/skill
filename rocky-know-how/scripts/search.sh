@@ -1,5 +1,5 @@
 #!/bin/bash
-# rocky-know-how 搜经验诀窍 v2.1.0
+# rocky-know-how 搜经验诀窍 v2.6.0
 SKILL_DIR="$(cd "$(dirname "$0")" && pwd)"
 
 # 用法: search.sh [选项] <关键词1> [关键词2]...
@@ -14,6 +14,17 @@ SKILL_DIR="$(cd "$(dirname "$0")" && pwd)"
 #       search.sh --layer hot|warm|cold  按层搜索
 #       search.sh --semantic "关键词"  语义搜索（基于向量）
 
+# R1 fix: 路径穿越校验函数
+validate_name() {
+  local name="$1"
+  case "$name" in
+    *../*|*..\\\\*|*/*|*\\\\*|*\`*|*\$*) 
+      echo "❌ 无效名称: 包含非法字符"
+      return 1 ;;
+  esac
+  return 0
+}
+
 MAX_RESULTS=10
 SINCE_DATE=""
 SHOW_ALL=false
@@ -24,7 +35,7 @@ FILTER_AREA=""
 FILTER_DOMAIN=""
 FILTER_PROJECT=""
 FILTER_LAYER=""
-SEMANTIC=true  # 默认启用语义搜索
+SEMANTIC=false  # 默认关闭语义搜索，需 --semantic 显式启用
 KEYWORDS=()
 
 while [[ $# -gt 0 ]]; do
@@ -33,13 +44,15 @@ while [[ $# -gt 0 ]]; do
     --preview)     PREVIEW=true; shift ;;
     --global)      GLOBAL=true; shift ;;
     --since)       SINCE_DATE="$2"; shift 2 ;;
+    --limit)         MAX_RESULTS="$2"; shift 2 ;;
     --max-results) MAX_RESULTS="$2"; shift 2 ;;
     --tag)         FILTER_TAG="$2"; shift 2 ;;
     --area)        FILTER_AREA="$2"; shift 2 ;;
     --domain)      FILTER_DOMAIN="$2"; shift 2 ;;
     --project)     FILTER_PROJECT="$2"; shift 2 ;;
     --layer)       FILTER_LAYER="$2"; shift 2 ;;
-    --semantic)   SEMANTIC=true; shift ;;
+    --semantic)    SEMANTIC=true; shift ;;
+    --no-semantic) SEMANTIC=false; shift ;;
     -h|--help)
       echo "用法: search.sh [选项] <关键词...>"
       echo "  --all              显示所有"
@@ -51,8 +64,9 @@ while [[ $# -gt 0 ]]; do
       echo "  --layer hot|warm|cold  按层搜索"
       echo "  --global           搜所有workspace"
       echo "  --since YYYY-MM-DD 按日期过滤"
-      echo "  --max-results N    最多显示N条（默认10）"
-      echo "  --semantic         语义搜索（基于向量）"
+      echo "  --limit N          最多显示N条（默认10）"\n"  --max-results N    同上，别名"
+      echo "  --semantic         启用语义搜索（默认关闭，需显式开启）"
+      echo "  --no-semantic      禁用语义搜索"
       exit 0 ;;
     -*)  echo "未知选项: $1"; exit 1 ;;
     *)   KEYWORDS+=("$1"); shift ;;
@@ -65,16 +79,9 @@ if [ ${#KEYWORDS[@]} -eq 1 ] && echo "${KEYWORDS[0]}" | grep -q ' '; then
   KEYWORDS=("${SPLIT_KW[@]}")
 fi
 
-# 动态获取状态目录（适配多网关实例）
-get_state_dir() {
-  if [ -n "$OPENCLAW_STATE_DIR" ]; then
-    echo "$OPENCLAW_STATE_DIR"
-  else
-    echo "$HOME/.openclaw"
-  fi
-}
+source "$SKILL_DIR/lib/common.sh"
 STATE_DIR=$(get_state_dir)
-SHARED_DIR="$STATE_DIR/.learnings"
+SHARED_DIR=$(get_shared_dir)
 ERRORS_FILE="$SHARED_DIR/experiences.md"
 
 # 新版 layered 存储路径
@@ -103,8 +110,11 @@ extract_blocks() {
       prev=$line
       continue
     fi
-    sed -n "${prev},$((line-1))p" "$file" > "$TMPDIR_KH/block_${block_idx}.md"
-    block_idx=$((block_idx+1))
+    # 检查是否相邻（line <= prev 时范围为负，跳过）
+    if [ "$line" -gt "$prev" ]; then
+      sed -n "${prev},$((line-1))p" "$file" > "$TMPDIR_KH/block_${block_idx}.md"
+      block_idx=$((block_idx+1))
+    fi
     prev=$line
   done
   local total=$(wc -l < "$file" | tr -d ' ')
@@ -192,6 +202,12 @@ search_experiences_file() {
   local count=$(extract_blocks "$file")
   [ -z "$count" ] && return 1
   [ "$count" -eq 0 ] && return 1
+  # R7 fix: 大量条目时限制临时文件数，避免 fd 耗尽
+  # N6 fix: 改为 stdout 输出，确保用户能看到提示
+  if [ "$count" -gt 500 ]; then
+    echo "⚠️ 条目数 ${count} 较多，仅搜索前500条"
+    count=500
+  fi
 
   local found=0
   local total_kw=${#KEYWORDS[@]:-0}
@@ -351,6 +367,8 @@ fi
 
 # Domain 搜索（无关键词时直接展示全部内容）
 if [ -n "$FILTER_DOMAIN" ]; then
+  # R1 fix: 校验 domain 名称，防止路径穿越
+  if ! validate_name "$FILTER_DOMAIN"; then exit 1; fi
   echo "─── Domain: ${FILTER_DOMAIN} ───"
   domain_file="$DOMAINS_DIR/${FILTER_DOMAIN}.md"
   if [ -f "$domain_file" ]; then
@@ -382,6 +400,8 @@ fi
 
 # Project 搜索（无关键词时直接展示全部内容）
 if [ -n "$FILTER_PROJECT" ]; then
+  # R1 fix: 校验 project 名称，防止路径穿越
+  if ! validate_name "$FILTER_PROJECT"; then exit 1; fi
   echo "─── Project: ${FILTER_PROJECT} ───"
   project_file="$PROJECTS_DIR/${FILTER_PROJECT}.md"
   if [ -f "$project_file" ]; then
@@ -399,7 +419,7 @@ if [ -n "$FILTER_PROJECT" ]; then
 fi
 
 # 需要关键词或过滤条件
-if [ ${#KEYWORDS[@]} -eq 0 ] && [ -z "$FILTER_TAG" ] && [ -z "$FILTER_AREA" ] && [ -z "$FILTER_DOMAIN" ] && [ -z "$FILTER_PROJECT" ] && [ -z "$FILTER_LAYER" ] && [ -z "$SHOW_ALL" ] && [ -z "$SINCE_DATE" ] && ! $SEMANTIC; then
+if [ ${#KEYWORDS[@]} -eq 0 ] && [ -z "$FILTER_TAG" ] && [ -z "$FILTER_AREA" ] && [ -z "$FILTER_DOMAIN" ] && [ -z "$FILTER_PROJECT" ] && [ -z "$FILTER_LAYER" ] && [ -z "$SINCE_DATE" ] && ! $SEMANTIC; then
   echo "用法: search.sh [选项] <关键词...>"
   echo "提示: 用 --tag / --area / --domain / --project / --layer 过滤，或输入关键词搜索"
   exit 1
@@ -433,6 +453,13 @@ if [ -d "$PROJECTS_DIR" ]; then
   done
 fi
 
+# 搜索 COLD 层（archive/），递归子目录
+if [ -d "$ARCHIVE_DIR" ] && [ ${#KEYWORDS[@]} -gt 0 ]; then
+  while IFS= read -r -d '' f; do
+    search_layered_file "$f" "archive/${f#$ARCHIVE_DIR/}" && layered_found=1
+  done < <(find "$ARCHIVE_DIR" -name "*.md" -type f -print0 2>/dev/null)
+fi
+
 # ============ 语义搜索（基于向量） ============
 semantic_found=0
 if $SEMANTIC; then
@@ -464,9 +491,9 @@ if $SEMANTIC; then
     QUERY=$(IFS=' '; echo "${KEYWORDS[*]}")
     echo ""
     echo "─── 语义搜索结果 ───"
-    local_semantic=$(vector_search "$QUERY" 5 0.6)
-    if [ -n "$local_semantic" ]; then
-      echo "$local_semantic" | while IFS='|' read score id area text; do
+    semantic_result=$(vector_search "$QUERY" 5 0.6)
+    if [ -n "$semantic_result" ]; then
+      echo "$semantic_result" | while IFS='|' read score id area text; do
         echo "  📊 [$score] $id [$area] $text"
       done
       semantic_found=1

@@ -1,10 +1,11 @@
 #!/bin/bash
-# rocky-know-how 统计面板 v2.1.0
+# rocky-know-how 统计面板 v2.6.0
 # 用法: stats.sh
 
-get_state_dir() { [ -n "$OPENCLAW_STATE_DIR" ] && echo "$OPENCLAW_STATE_DIR" || echo "$HOME/.openclaw"; }
+SKILL_DIR="$(cd "$(dirname "$0")" && pwd)"
+source "$SKILL_DIR/lib/common.sh"
 STATE_DIR=$(get_state_dir)
-SHARED_DIR="$STATE_DIR/.learnings"
+SHARED_DIR=$(get_shared_dir)
 ERRORS_FILE="$SHARED_DIR/experiences.md"
 MEMORY_FILE="$SHARED_DIR/memory.md"
 CORRECTIONS_FILE="$SHARED_DIR/corrections.md"
@@ -13,7 +14,7 @@ PROJECTS_DIR="$SHARED_DIR/projects"
 ARCHIVE_DIR="$SHARED_DIR/archive"
 
 echo "╔════════════════════════════════════════════╗"
-echo "║  📊 rocky-know-how 经验诀窍统计面板 v2.1.0 ║"
+echo "║  📊 rocky-know-how 经验诀窍统计面板 v2.6.0 ║"
 echo "╚════════════════════════════════════════════╝"
 echo ""
 

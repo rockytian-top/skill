@@ -1,26 +1,5 @@
 # CHANGELOG
 
-## [2.6.0] - 2026-04-22
-
-### OpenClaw 2026.4.21 新 Hook 支持
-
-- 新增 **before_compaction hook**：压缩前保存任务状态到临时文件
-- 新增 **after_compaction hook**：压缩后记录会话总结到 session-summaries.md
-- 新增 **before_reset hook**：重置前保存重要信息
-- Hook handler: `hooks/handler.js` v2.6.0
-
-### 去重逻辑优化
-
-- **修复**：Tags重叠≥50% 直接拦截，无需文字相似度检查
-- **原因**：中文词汇分割导致相似度计算错误
-- **影响**：避免了重复经验条目的产生
-
-### 文档更新
-
-- 更新 README.md / README_EN.md（完整说明书）
-- 更新根目录 README.md（技能库总览）
-- 修正注释（60%→50%）
-
 ## [2.0.0] - 2026-04-21
 
 ### 架构重构（完全对齐 self-improving）

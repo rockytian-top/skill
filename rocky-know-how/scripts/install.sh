@@ -1,12 +1,12 @@
 #!/bin/bash
-# rocky-know-how 安装脚本 v2.1.0
+# rocky-know-how 安装脚本 v2.6.0
 # 用法: bash install.sh [--with-hook]
 #   --with-hook   自动配置 Hook 到 openclaw.json（需手动重启 gateway）
 # 本脚本创建目录和初始化文件。可选配置 Hook（需显式 --with-hook）。
 
 set -e
 
-VERSION="2.0.1"
+VERSION="2.6.0"
 SKILL_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 
 # 解析参数
@@ -28,9 +28,10 @@ echo "║  经验诀窍技能 - 完全对齐 self-improving    ║"
 echo "╚════════════════════════════════════════════╝"
 echo ""
 
-get_state_dir() { [ -n "$OPENCLAW_STATE_DIR" ] && echo "$OPENCLAW_STATE_DIR" || echo "$HOME/.openclaw"; }
+SCRIPTS_DIR="$(cd "$(dirname "$0")" && pwd)"
+source "$SCRIPTS_DIR/lib/common.sh"
 STATE_DIR=$(get_state_dir)
-SHARED_DIR="$STATE_DIR/.learnings"
+SHARED_DIR=$(get_shared_dir)
 
 echo "📂 创建共享经验诀窍目录..."
 mkdir -p "$SHARED_DIR"
@@ -83,8 +84,9 @@ Last compaction: never
 
 init_file "$SHARED_DIR/corrections.md" "# 纠正日志
 
-| 日期 | 我哪里错了 | 正确答案 | 状态 |
-|------|-----------|---------|------|
+## $(date '+%Y-%m-%d')
+
+<!-- N5 fix: 使用日期块格式与 compact.sh 期望一致，便于压缩整理 -->
 "
 
 init_file "$SHARED_DIR/reflections.md" "# 自我反思日志
@@ -111,7 +113,7 @@ else
 fi
 
 echo ""
-echo "✅ v2.1.0 安装完成！"
+echo "✅ v2.6.0 安装完成！"
 echo ""
 echo "📊 存储结构:"
 echo "   $SHARED_DIR/"
@@ -196,7 +198,7 @@ else
 fi
 
 echo ""
-echo "🎉 rocky-know-how v2.1.0 安装完成！"
+echo "🎉 rocky-know-how v2.6.0 安装完成！"
 echo ""
 echo "  搜索: bash $SKILL_DIR/scripts/search.sh \"关键词\""
 echo "  写入: bash $SKILL_DIR/scripts/record.sh ..."

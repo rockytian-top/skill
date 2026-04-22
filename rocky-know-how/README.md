@@ -1,238 +1,165 @@
-# rocky-know-how 完整使用手册
+# 📚 rocky-know-how
 
-**版本**: v2.6.0 | **适用系统**: macOS / Linux / Windows
+> OpenClaw Learning Knowledge Skill — Search on failure, write after solving, learnings shared across agents
 
----
+[English](./README_EN.md) | 中文
 
-## 📚 简介
+## ✨ 功能特性
 
-rocky-know-how 是一个经验诀窍技能，帮助 AI Agent 在失败中学习、在成功后记录。
+- 🔍 **智能搜索** — 多关键词 AND 匹配 + 相关度评分排序
+- 🏷️ **标签/领域筛选** — `--tag` `--area` 精确过滤
+- 🔄 **自动去重** — 问题文本 + Tags 组合去重
+- 📝 **同步原生记忆** — 写入 memory/*.md，memory_search 可搜
+- 🌙 **Dreaming 整合** — 标记注释，供 Dreaming 阶段分析
+- 📊 **Tag晋升铁律** — 同 Tag ≥3次自动写入 TOOLS.md
+- 📥 **历史导入** — 从 memory/*.md 批量提取教训
+- 🗄️ **自动归档** — 超过30天自动归档，适合 cron
+- 🌐 **跨 agent 共享** — 全局存储，所有 agent 通用
 
-核心功能：
-- 🔍 **失败≥2次时** → 自动搜索经验库
-- ✍️ **问题解决后** → 自动记录到经验库
-- 📊 **Tag晋升机制** → 常用经验自动升级
-- 🧹 **自动清理** → 测试数据定期清理
+## 🔒 安全保障
 
----
+| 措施 | 说明 |
+|------|------|
+| 不执行系统命令 | 只读写本地文件 |
+| 无敏感数据收集 | 只存储经验文本 |
+| 无网络请求 | 纯本地操作 |
+| 代码开源可审查 | MIT 许可证 |
+| 路径动态获取 | 不硬编码用户路径 |
+
+## 📦 脚本列表
+
+| 脚本 | 说明 |
+|------|------|
+| search.sh | 搜索经验（相关度排序、标签/领域筛选、摘要模式） |
+| record.sh | 写入经验（去重、dry-run、Dreaming标记） |
+| stats.sh | 统计面板（条目数、Area/Tag分布） |
+| promote.sh | Tag晋升检查（≥3次自动写TOOLS.md） |
+| import.sh | 从 memory/*.md 批量导入历史教训 |
+| archive.sh | 归档旧条目（手动/auto模式） |
+| clean.sh | 清理工具（测试条目/旧索引） |
+| install.sh | 安装脚本 |
+| uninstall.sh | 卸载脚本 |
 
 ## 🚀 安装
 
-### 方式一：自动安装
+### 架构：一套安装，全团队共享
 
+```
+~/.openclaw/.learnings/          ← 数据和脚本，所有 agent 共用一份
+├── experiences.md               ← 经验数据库
+├── memory.md                    ← HOT 层
+├── domains/                    ← 领域隔离
+└── projects/                   ← 项目隔离
+```
+
+**数据只需安装一次**，所有 agent 共享同一份经验库。
+
+**Hook 配置需要每个 agent 单独做**（如果想让 agent 在对话中自动看到"先搜经验"提醒）。
+
+### ClawHub（推荐）
 ```bash
-git clone https://gitee.com/rocky_tian/skill.git
+openclaw skills install rocky-know-how
+```
+
+### 手动安装
+```bash
+git clone https://github.com/rockytian-top/skill.git
 cd skill/rocky-know-how
-./scripts/install.sh
+bash scripts/install.sh
 ```
 
-### 方式二：手动安装
+### Hook 自动配置 ✅
 
-1. 复制 `scripts/` 目录到 `~/.openclaw/skills/rocky-know-how/`
-2. 配置 Hook（可选，支持 OpenClaw 2026.4.21+）：
-   ```bash
-   # 在 openclaw.json 中添加：
-   "hooks": {
-     "internal": {
-       "load": {
-         "extraDirs": [
-           "~/.openclaw/skills/rocky-know-how/hooks"
-         ]
-       }
-     }
-   }
-   ```
+install.sh 会自动将 hook 路径添加到 `openclaw.json` 的 `extraDirs`，**无需手动配置**。
 
----
-
-## 📁 数据结构
-
-```
-~/.openclaw/.learnings/
-├── experiences.md    # 主经验库（所有经验）
-├── corrections.md    # 纠正日志
-├── memory.md         # HOT层（频繁使用，始终加载）
-├── domains/          # WARM层（按领域分类）
-│   ├── code.md
-│   ├── general.md
-│   └── infra.md
-├── projects/         # WARM层（按项目分类）
-└── archive/          # COLD层（归档）
-```
-
----
-
-## 🎯 核心命令
-
-### 1. 搜索经验 `search.sh`
-
+配置后重启 gateway：
 ```bash
-# 基本搜索
-bash scripts/search.sh "nginx 502"
+openclaw gateway restart
+```
 
-# 查看全部
-bash scripts/search.sh --all
+如需手动配置（不推荐），参考 rocky-know-how/setup.md。
+
+## 📖 用法
+
+### 搜索经验
+```bash
+# 多关键词搜索（相关度排序）
+bash scripts/search.sh "排查" "网站"
+
+# 按标签搜索（AND逻辑）
+bash scripts/search.sh --tag "troubleshooting,vps"
+
+# 按领域搜索
+bash scripts/search.sh --area infra
 
 # 摘要模式
 bash scripts/search.sh --preview "关键词"
 
-# 按标签筛选
-bash scripts/search.sh --tag "php-fpm"
-
-# 按领域筛选
-bash scripts/search.sh --area "infra"
+# 查看全部
+bash scripts/search.sh --all
 ```
 
-### 2. 记录经验 `record.sh`
-
+### 写入经验
 ```bash
-# 基本记录
-bash scripts/record.sh "问题描述" "踩坑过程" "正确方案" "预防措施" "tag1,tag2" "area"
+# 正常写入
+bash scripts/record.sh "问题" "踩坑过程" "正确方案" "预防措施" "tag1,tag2" "area"
 
-# 预览模式（不实际写入）
-bash scripts/record.sh --dry-run "问题" "踩坑" "方案" "预防" "tags" "area"
-
-# 指定命名空间
-bash scripts/record.sh --namespace "project:myapp" "问题" "踩坑" "方案" "预防" "tags" "area"
+# 预览不写入
+bash scripts/record.sh --dry-run "问题" "踩坑" "方案" "预防" "tags"
 ```
 
-### 3. 统计面板 `stats.sh`
-
+### 导入/归档
 ```bash
-bash scripts/stats.sh
+# 从 memory 导入历史教训
+bash scripts/import.sh --dry-run    # 先预览
+bash scripts/import.sh              # 实际导入
+
+# 手动归档
+bash scripts/archive.sh --dry-run   # 先预览
+bash scripts/archive.sh             # 实际归档
+
+# 自动归档（适合 cron/heartbeat）
+bash scripts/archive.sh --auto
 ```
 
-输出示例：
+## 🔄 核心循环
+
 ```
-╔════════════════════════════════════════════╗
-║  📊 rocky-know-how 经验诀窍统计面板 v2.1.0 ║
-╚════════════════════════════════════════════╝
-
-🔥 HOT (始终加载)
-  memory.md: 14 条目
-
-🌡️ WARM (按需加载)
-  domains/: 3 文件
-  projects/: 2 文件
-
-📚 v1 主数据 (experiences.md)
-  总条目: 45
-```
-
-### 4. Tag晋升检查 `promote.sh`
-
-```bash
-bash scripts/promote.sh
+接到任务 → 正常执行
+    ↓
+失败≥2次 → 搜经验诀窍（search.sh）
+    ├── 有答案 → 按答案执行
+    └── 没答案 → 继续尝试直到成功
+    ↓
+成功后 → 写入经验诀窍（record.sh）
+    ↓
+同步到 memory/*.md → memory_search 可搜到
+    ↓
+同Tag≥3次 → 晋升到 TOOLS.md（promote.sh）
 ```
 
-### 5. 清理测试数据 `clean.sh`
+## 📂 存储结构
 
-```bash
-# 预览
-bash scripts/clean.sh --dry-run
-
-# 执行清理
-bash scripts/clean.sh
+```
+~/.openclaw/.learnings/
+├── experiences.md          ← 经验数据（全局共享）
+└── archive/                ← 归档目录
+    └── YYYY-MM/            ← 按月归档
 ```
 
----
+## 🔧 兼容性
 
-## 🔄 v2.6.0 更新
+- ✅ macOS bash 3.x（不用 `=~`，不用 GNU 扩展）
+- ✅ Node.js 18+（CommonJS，无 TypeScript 依赖）
+- ✅ macOS / Linux
+- ✅ OpenClaw 2026.4.x+
 
-### 支持 OpenClaw 2026.4.21 新 Hook
+## 📄 许可证
 
-| Hook | 触发时机 | 功能 |
-|------|----------|------|
-| `before_compaction` | 会话压缩前 | 保存当前任务状态到临时文件 |
-| `after_compaction` | 会话压缩后 | 读取状态，记录会话总结到 session-summaries.md |
-| `before_reset` | 会话重置前 | 保存重要信息 |
+[MIT License](./LICENSE)
 
-### 去重逻辑优化
+## 🔗 链接
 
-- **旧逻辑**：Tags重叠≥60% + 文字相似度≥70% 才拦截
-- **新逻辑**：Tags重叠≥50% 直接拦截
-- **原因**：中文词汇分割导致相似度计算错误
-
----
-
-## 🏷️ Tag 晋升规则
-
-| 条件 | 晋升结果 |
-|------|----------|
-| 30天内同一Tag出现≥3次 | → HOT层 `memory.md` |
-| 30天无访问 | → 自动降级到COLD层 |
-
----
-
-## 📋 经验条目格式
-
-```markdown
-## [EXP-20260422-001] 问题标题
-
-**Area**: infra
-**Failed-Count**: ≥2
-**Tags**: nginx, 502, php-fpm
-**Created**: 2026-04-22 10:00:00
-**Namespace**: global
-
-### 问题
-问题描述
-
-### 踩坑过程
-第1次: ... → 失败
-第2次: ... → 失败
-
-### 正确方案
-正确的解决方法
-
-### 预防
-如何避免再次踩坑
-```
-
----
-
-## ⚙️ 配置
-
-### 环境变量
-
-| 变量 | 说明 | 默认值 |
-|------|------|--------|
-| `OPENCLAW_STATE_DIR` | 状态目录 | `~/.openclaw` |
-| `OPENCLAW_WORKSPACE` | 工作区目录 | 自动推断 |
-| `OPENCLAW_SESSION_KEY` | 会话Key | 自动获取 |
-
-### Hook 配置（可选）
-
-在 `openclaw.json` 中添加：
-
-```json
-{
-  "hooks": {
-    "internal": {
-      "load": {
-        "extraDirs": [
-          "~/.openclaw/skills/rocky-know-how/hooks"
-        ]
-      }
-    }
-  }
-}
-```
-
----
-
-## 🔗 相关链接
-
-- **Gitee**: https://gitee.com/rocky_tian/skill
-- **GitHub**: https://github.com/rockytian-top/skill
-- **ClawHub**: https://clawhub.ai/skills/rocky-know-how
-
----
-
-## 📄 许可
-
-MIT License
-
----
-
-_最后更新: 2026-04-22 v2.6.0_
+- [ClawHub](https://clawhub.ai/skills/rocky-know-how)
+- [GitHub](https://github.com/rockytian-top/openclaw-rocky-skills)
+- [Gitee](https://gitee.com/rocky_tian/skill)

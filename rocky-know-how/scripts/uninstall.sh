@@ -1,12 +1,12 @@
 #!/bin/bash
-# rocky-know-how 卸载脚本 v2.1.0
+# rocky-know-how 卸载脚本 v2.6.0
 # 用法: bash uninstall.sh
 # 本脚本只删除数据文件，不修改配置文件。
 
 set -e
 
 echo "╔════════════════════════════════════════════╗"
-echo "║  rocky-know-how 卸载脚本 v2.1.0          ║"
+echo "║  rocky-know-how 卸载脚本 v2.6.0          ║"
 echo "╚════════════════════════════════════════════╝"
 echo ""
 
@@ -18,9 +18,10 @@ echo ""
 
 read -p "是否删除经验诀窍数据？(y/N) " confirm_data
 if [[ "$confirm_data" == "y" || "$confirm_data" == "Y" ]]; then
-  get_state_dir() { [ -n "$OPENCLAW_STATE_DIR" ] && echo "$OPENCLAW_STATE_DIR" || echo "$HOME/.openclaw"; }
+  SCRIPTS_DIR="$(cd "$(dirname "$0")" && pwd)"
+  source "$SCRIPTS_DIR/lib/common.sh"
   STATE_DIR=$(get_state_dir)
-  SHARED_DIR="$STATE_DIR/.learnings"
+  SHARED_DIR=$(get_shared_dir)
   if [ -d "$SHARED_DIR" ]; then
     echo "🗑️  删除经验诀窍数据..."
     rm -rf "$SHARED_DIR"

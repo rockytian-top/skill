@@ -1,5 +1,5 @@
 #!/bin/bash
-# rocky-know-how 压缩整理脚本 v2.1.0
+# rocky-know-how 压缩整理脚本 v2.6.0
 # 用法: compact.sh [--dry-run] [--file memory.md]
 # 当文件超过限制时压缩：
 #   memory.md: >100行 → 合并相似条目，摘要冗余，保留已确认偏好
@@ -23,17 +23,32 @@ while [[ $# -gt 0 ]]; do
   esac
 done
 
-SKILL_DIR="$(cd "$(dirname "$0")" && pwd)"
-get_state_dir() { [ -n "$OPENCLAW_STATE_DIR" ] && echo "$OPENCLAW_STATE_DIR" || echo "$HOME/.openclaw"; }
+LOCK_DIR=""
+acquire_lock_from_common() {
+  LOCK_DIR="$(get_lock_dir compact)"
+  if ! acquire_lock "$LOCK_DIR"; then
+    echo "❌ 无法获取压缩锁，请稍后重试"
+    exit 1
+  fi
+}
+release_lock_from_common() {
+  [ -n "$LOCK_DIR" ] && release_lock "$LOCK_DIR"
+}
+
+SCRIPTS_DIR="$(cd "$(dirname "$0")" && pwd)"
+source "$SCRIPTS_DIR/lib/common.sh"
 STATE_DIR=$(get_state_dir)
-SHARED_DIR="$STATE_DIR/.learnings"
+SHARED_DIR=$(get_shared_dir)
+# R4 fix: 获取压缩锁
+acquire_lock_from_common
+trap 'release_lock_from_common' EXIT
 MEMORY_FILE="$SHARED_DIR/memory.md"
 CORRECTIONS_FILE="$SHARED_DIR/corrections.md"
 DOMAINS_DIR="$SHARED_DIR/domains"
 PROJECTS_DIR="$SHARED_DIR/projects"
 ARCHIVE_DIR="$SHARED_DIR/archive"
 
-echo "=== 压缩整理 (v2.1.0) ==="
+echo "=== 压缩整理 (v2.6.0) ==="
 $DRY_RUN && echo "模式: 模拟 (dry-run)"
 echo ""
 
@@ -72,58 +87,6 @@ check_and_compact() {
   fi
 }
 
-# 合并相似条目（按Tag分组）
-merge_similar_entries() {
-  local file="$1"
-  local tmp_file="/tmp/rocky-know-how-merge-$$.md"
-  
-  # 提取已确认偏好部分
-  local confirmed_pref=$(awk '
-    /^## 已确认偏好$/ { in_confirmed=1; next }
-    /^## / { in_confirmed=0 }
-    in_confirmed { print }
-  ' "$file")
-  
-  # 提取其他条目并按Tag合并
-  local other_entries=$(awk '
-    /^## 已确认偏好$/ { skip=1; next }
-    /^## / { skip=0 }
-    !skip { print }
-  ' "$file")
-  
-  # 合并相同Tag的条目
-  local merged=""
-  local current_tag=""
-  local current_entry=""
-  
-  while IFS= read -r line; do
-    if echo "$line" | grep -qE "^\-\ \*\*Tag"; then
-      # 保存前一个条目
-      if [ -n "$current_entry" ]; then
-        merged="$merged$current_entry\n"
-      fi
-      current_tag=$(echo "$line" | sed 's/.*\*\*Tag:\*\* *//')
-      current_entry="$line\n"
-    else
-      current_entry="$current_entry$line\n"
-    fi
-  done < <(echo "$other_entries")
-  if [ -n "$current_entry" ]; then
-    merged="$merged$current_entry"
-  fi
-  
-  # 输出结果
-  if [ -n "$confirmed_pref" ]; then
-    echo "## 已确认偏好"
-    echo "$confirmed_pref"
-    echo ""
-  fi
-  if [ -n "$merged" ]; then
-    echo "## 合并后的条目"
-    echo -e "$merged"
-  fi
-}
-
 compact_file() {
   local file="$1"
   local limit="$2"
@@ -134,105 +97,82 @@ compact_file() {
   echo "    📦 备份: $backup_file"
 
   # 策略1: 对于 memory.md，智能压缩
+  # 实际格式：晋升条目以 `## YYYY-MM-DD` 开头，后面是晋升内容块
+  # 策略：保留所有 `## YYYY-MM-DD` 开头的条目，删除其他条目
+  # 如果文件格式与预期不符（无日期条目），跳过压缩以避免数据丢失
   if [ "$file" = "$MEMORY_FILE" ]; then
-    local tmp_file="/tmp/rocky-know-how-compact-$$.md"
+    # P4 fix: 使用 mktemp 替代固定路径
+    local tmp_file=$(mktemp /tmp/rocky-know-how.XXXXXX)
     
-    # 提取各部分
-    local confirmed_pref=$(awk '
-      /^## 已确认偏好$/ { in_confirmed=1; print; next }
-      /^## / { if (in_confirmed) { in_confirmed=0 } }
-      in_confirmed { print }
-    ' "$file")
+    # 检查是否包含日期条目格式（`## YYYY-MM-DD` 开头）
+    local has_date_entries=$(grep -c "^## [0-9]" "$file" 2>/dev/null || echo "0")
     
-    local active_patterns=$(awk '
-      /^## 已确认偏好$/ { skip=1; next }
-      /^## 活跃模式$/ { skip=0; print; next }
-      /^## / { if (!skip) { skip=1 } }
-      !skip { print }
-    ' "$file")
+    if [ "$has_date_entries" -eq 0 ]; then
+      echo "    ⚠️  memory.md 格式不符（无日期条目），跳过压缩以避免数据丢失"
+      rm -f "$tmp_file"
+      return 0
+    fi
     
-    local recent_entries=$(awk '
-      /^## 最近（最近7天）$/ { in_recent=1; print; next }
-      /^## 归档摘要$/ { in_recent=0 }
-      in_recent { print }
-    ' "$file")
+    # 保留所有日期条目（## YYYY-MM-DD 开头）及其完整内容
+    awk '
+      BEGIN { buffer=""; in_date_entry=0 }
+      /^## [0-9]{4}-[0-9]{2}-[0-9]{2}/ {
+        if (in_date_entry && buffer != "") { print buffer }
+        buffer=$0; in_date_entry=1; next
+      }
+      /^## / {
+        if (in_date_entry && buffer != "") { print buffer }
+        buffer=""; in_date_entry=0; next
+      }
+      in_date_entry { buffer = buffer "\n" $0; next }
+      !in_date_entry { print }
+      END { if (in_date_entry && buffer != "") { print buffer } }
+    ' "$file" > "$tmp_file"
     
-    local archive_summary=$(awk '
-      /^## 归档摘要$/ { in_archive=1; print; next }
-      in_archive { print }
-    ' "$file")
+    # 检查压缩后是否有效（行数减少或有日期条目）
+    local after_date_entries=$(grep -c "^## [0-9]" "$tmp_file" 2>/dev/null || echo "0")
     
-    # 计算当前行数
-    local current_lines=$(wc -l < "$file" | tr -d ' ')
-    local overflow=$((current_lines - limit))
-    
-    # 构建压缩后的文件
-    {
-      echo "# HOT 记忆"
-      echo ""
-      
-      # 保留已确认偏好（永不删除）
-      if [ -n "$confirmed_pref" ]; then
-        echo "## 已确认偏好"
-        echo "$confirmed_pref"
-        echo ""
-      fi
-      
-      # 保留活跃模式
-      if [ -n "$active_patterns" ]; then
-        echo "## 活跃模式"
-        echo "$active_patterns"
-        echo ""
-      fi
-      
-      # 保留最近7天的条目
-      if [ -n "$recent_entries" ]; then
-        echo "## 最近（最近7天）"
-        echo "$recent_entries"
-        echo ""
-      fi
-      
-      # 添加归档摘要
-      echo "## 归档摘要"
-      echo "<!-- $(date '+%Y-%m-%d') 压缩: 超出 ${limit} 行限制 -->"
-      if [ -n "$archive_summary" ]; then
-        echo "$archive_summary" | tail -n +2  # 跳过第一行（标题）
-      fi
-    } > "$tmp_file"
+    if [ "$after_date_entries" -eq 0 ]; then
+      echo "    ❌ 压缩后 memory.md 无日期条目，恢复备份"
+      rm -f "$tmp_file"
+      return 1
+    fi
     
     mv "$tmp_file" "$file"
-    return
+    return 0
   fi
 
-  # 策略2: 对于 corrections.md，保留最近50条时间戳条目
+  # 策略2: 对于 corrections.md，保留最近50个日期块
   # corrections.md 格式:
   # # 纠正日志
   # ## YYYY-MM-DD (日期标题)
   # ### HH:MM — namespace:area (时间戳条目，每个条目以 ### HH:MM 开头)
   if [ "$file" = "$CORRECTIONS_FILE" ]; then
-    # 计算当前条目数（以 ### HH:MM 开头）
-    local before_count=$(grep -c "^### [0-9][0-9]:[0-9][0-9] " "$file" 2>/dev/null || echo "0")
-    echo "    📊 压缩前条目数: ${before_count}"
-    
+    # 计算当前日期块数量（以 ## YYYY-MM-DD 开头），与归档粒度保持一致
+    local before_count=$(grep -c "^## [0-9]" "$file" 2>/dev/null || echo "0")
+    echo "    📊 压缩前日期块数: ${before_count}"
+
     if [ "$before_count" -gt 50 ]; then
       # 创建 archive 目录
       mkdir -p "$ARCHIVE_DIR"
       local archive_file="${ARCHIVE_DIR}/corrections-archive.md"
-      
+
       # 获取所有日期块（倒序）
       local all_dates=$(grep "^## [0-9]" "$file" 2>/dev/null | tac)
       local total_dates=$(echo "$all_dates" | wc -l | tr -d ' ')
-      
-      # 保留最近50个日期（倒序的前50个，即最早的那些日期）
+
+      # 保留最近50个日期块（倒序的前50个，即最早的那些日期）
       local dates_to_keep=$(echo "$all_dates" | tail -50)
       local to_archive=$((total_dates - 50))
       local dates_to_archive=$(echo "$all_dates" | head -$to_archive)
-      
+
       echo "    📊 总日期数: ${total_dates}, 保留: 50, 归档: $((total_dates - 50))"
       
-      # 创建临时文件
-      local tmp_kept="/tmp/rocky-know-how-corr-kept-$$.md"
-      local tmp_archive_content="/tmp/rocky-know-how-corr-arch-content-$$.md"
+      # P4 fix: 使用 mktemp 替代固定路径，避免进程ID冲突和临时文件残留
+      local tmp_kept
+      local tmp_archive_content
+      tmp_kept=$(mktemp /tmp/rocky-know-how.corr-kept.XXXXXX)
+      tmp_archive_content=$(mktemp /tmp/rocky-know-how.corr-arch.XXXXXX)
       
       # 写入保留文件的头部（保留文件的前两行：标题和空行）
       head -n 2 "$file" > "$tmp_kept"
@@ -258,9 +198,9 @@ compact_file() {
           # 结束之前的条目
           if [ -n "$line_buffer" ]; then
             if [ $in_keep_date -eq 1 ]; then
-              echo "$line_buffer" >> "$tmp_kept"
+              printf '%s\n' "$line_buffer" >> "$tmp_kept"
             else
-              echo "$line_buffer" >> "$tmp_archive_content"
+              printf '%s\n' "$line_buffer" >> "$tmp_archive_content"
             fi
             line_buffer=""
           fi
@@ -268,20 +208,20 @@ compact_file() {
           if echo "$dates_to_keep" | grep -qF "$line"; then
             in_keep_date=1
             echo "" >> "$tmp_kept"
-            echo "$line" >> "$tmp_kept"
+            printf '%s\n' "$line" >> "$tmp_kept"
           else
             in_keep_date=0
             echo "" >> "$tmp_archive_content"
-            echo "$line" >> "$tmp_archive_content"
+            printf '%s\n' "$line" >> "$tmp_archive_content"
           fi
           in_entry=0
         elif echo "$line" | grep -qE "^### [0-9][0-9]:[0-9][0-9] "; then
           # 时间戳条目开始 - 结束之前的条目
           if [ -n "$line_buffer" ]; then
             if [ $in_keep_date -eq 1 ]; then
-              echo "$line_buffer" >> "$tmp_kept"
+              printf '%s\n' "$line_buffer" >> "$tmp_kept"
             else
-              echo "$line_buffer" >> "$tmp_archive_content"
+              printf '%s\n' "$line_buffer" >> "$tmp_archive_content"
             fi
             line_buffer=""
           fi
@@ -292,9 +232,9 @@ compact_file() {
         elif [ -n "$line" ]; then
           # 非条目内容行（如空行或注释），直接处理
           if [ $in_keep_date -eq 1 ]; then
-            echo "$line" >> "$tmp_kept"
+            printf '%s\n' "$line" >> "$tmp_kept"
           else
-            echo "$line" >> "$tmp_archive_content"
+            printf '%s\n' "$line" >> "$tmp_archive_content"
           fi
         fi
       done < "$file"
@@ -302,9 +242,9 @@ compact_file() {
       # 处理最后一行
       if [ -n "$line_buffer" ]; then
         if [ $in_keep_date -eq 1 ]; then
-          echo "$line_buffer" >> "$tmp_kept"
+          printf '%s\n' "$line_buffer" >> "$tmp_kept"
         else
-          echo "$line_buffer" >> "$tmp_archive_content"
+          printf '%s\n' "$line_buffer" >> "$tmp_archive_content"
         fi
       fi
       
@@ -318,9 +258,9 @@ compact_file() {
       # 清理临时文件
       rm -f "$tmp_archive_content"
       
-      # 验证压缩后条目数
-      local after_count=$(grep -c "^### [0-9][0-9]:[0-9][0-9] " "$file" 2>/dev/null || echo "0")
-      echo "    📊 压缩后条目数: ${after_count}"
+      # P6 fix: 统一用日期块维度统计（before_count 也是日期块数）
+      local after_count=$(grep -c "^## [0-9]" "$file" 2>/dev/null || echo "0")
+      echo "    📊 压缩后日期块数: ${after_count}"
       
       if [ "$after_count" -ge "$before_count" ]; then
         echo "    ❌ 压缩后条目数异常: ${after_count} >= ${before_count}"
@@ -363,13 +303,13 @@ if [ -f "$CORRECTIONS_FILE" ]; then
   echo "  corrections.md: ${corr_lines} 行 (限制: 200)"
   # corrections 保留最近50条
   # 先检查条目数（以 ### HH:MM 开头）
-  corr_entries=$(grep -c "^### [0-9][0-9]:[0-9][0-9] " "$CORRECTIONS_FILE" 2>/dev/null || echo "0")
-  echo "  条目数: ${corr_entries} (压缩阈值: 50)"
+  corr_entries=$(grep -c "^## [0-9]" "$CORRECTIONS_FILE" 2>/dev/null || echo "0")
+  echo "  日期块数: ${corr_entries} (压缩阈值: 50)"
   if [ "$corr_entries" -gt 50 ]; then
     if $DRY_RUN; then
       echo "    [dry-run] 将压缩 corrections.md（保留最近50条）"
     else
-      compact_file "$CORRECTIONS_FILE" 200
+      compact_file "$CORRECTIONS_FILE" 50
       echo "    ✅ 已压缩: corrections.md"
     fi
   else
@@ -400,7 +340,7 @@ else
   echo "✅ 压缩整理完成"
 fi
 echo ""
-echo "💡 压缩策略 v2.1.0:"
+echo "💡 压缩策略 v2.6.0:"
 echo "   1. memory.md: 合并相似条目，摘要冗余，保留已确认偏好"
 echo "   2. corrections.md: 保留最近50条"
 echo "   3. domains/projects: 超出部分移到 archive/ 再截断"
