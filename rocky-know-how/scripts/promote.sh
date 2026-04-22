@@ -1,5 +1,5 @@
 #!/bin/bash
-# rocky-know-how Tag 晋升机制 v2.7.0
+# rocky-know-how Tag 晋升机制 v2.7.1
 # 用法: promote.sh
 # 检查 7 天内同一 Tag 出现 ≥3 次，自动晋升到 HOT (memory.md)
 # 环境变量: WORKSPACE, STATE_DIR (由 record.sh 传入)
@@ -26,7 +26,7 @@ cleanup_promote() {
 }
 trap 'cleanup_promote' EXIT
 
-echo "=== Tag 晋升检查 (v2.7.0) ==="
+echo "=== Tag 晋升检查 (v2.7.1) ==="
 echo "检查周期: ${CUTOFF_DATE} - ${TODAY} (7天窗口)"
 echo "目标 HOT: $MEMORY_FILE"
 echo ""

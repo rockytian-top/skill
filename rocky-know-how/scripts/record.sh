@@ -1,5 +1,5 @@
 #!/bin/bash
-# rocky-know-how 写入经验诀窍 v2.7.0
+# rocky-know-how 写入经验诀窍 v2.7.1
 # 用法: record.sh [--dry-run] [--namespace global|domain|project] "<问题>" "<踩坑过程>" "<正确方案>" "<预防>" "<tags>" [area|domain]
 # 例: record.sh "排查网站只看进程" "第1次:只看进程→报正常" "curl验证" "必须curl" "troubleshooting" infra
 

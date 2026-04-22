@@ -1,5 +1,5 @@
 #!/bin/bash
-# rocky-know-how 搜经验诀窍 v2.7.0
+# rocky-know-how 搜经验诀窍 v2.7.1
 SKILL_DIR="$(cd "$(dirname "$0")" && pwd)"
 
 # 用法: search.sh [选项] <关键词1> [关键词2]...

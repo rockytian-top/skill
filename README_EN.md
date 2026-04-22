@@ -1,6 +1,6 @@
 # rocky-know-how Learning Knowledge Skill
 
-**Version**: v2.7.0 | **OS**: macOS / Linux / Windows
+**Version**: v2.7.1 | **OS**: macOS / Linux / Windows
 
 ---
 
@@ -51,7 +51,7 @@ cd skill/rocky-know-how
 
 ---
 
-## 🔄 v2.7.0 Updates
+## 🔄 v2.7.1 Updates
 
 ### Support OpenClaw 2026.4.21 New Hooks
 
@@ -116,4 +116,4 @@ cd skill/rocky-know-how
 
 ---
 
-_Last updated: 2026-04-22 v2.7.0_
+_Last updated: 2026-04-22 v2.7.1_

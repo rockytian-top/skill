@@ -1,5 +1,5 @@
 #!/bin/bash
-# rocky-know-how 压缩整理脚本 v2.7.0
+# rocky-know-how 压缩整理脚本 v2.7.1
 # 用法: compact.sh [--dry-run] [--file memory.md]
 # 当文件超过限制时压缩：
 #   memory.md: >100行 → 合并相似条目，摘要冗余，保留已确认偏好
@@ -48,7 +48,7 @@ DOMAINS_DIR="$SHARED_DIR/domains"
 PROJECTS_DIR="$SHARED_DIR/projects"
 ARCHIVE_DIR="$SHARED_DIR/archive"
 
-echo "=== 压缩整理 (v2.7.0) ==="
+echo "=== 压缩整理 (v2.7.1) ==="
 $DRY_RUN && echo "模式: 模拟 (dry-run)"
 echo ""
 
@@ -340,7 +340,7 @@ else
   echo "✅ 压缩整理完成"
 fi
 echo ""
-echo "💡 压缩策略 v2.7.0:"
+echo "💡 压缩策略 v2.7.1:"
 echo "   1. memory.md: 合并相似条目，摘要冗余，保留已确认偏好"
 echo "   2. corrections.md: 保留最近50条"
 echo "   3. domains/projects: 超出部分移到 archive/ 再截断"
