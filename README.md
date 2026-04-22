@@ -1,140 +1,119 @@
-# 📚 rocky-know-how
+# rocky-know-how 经验诀窍技能库
 
-> 经验诀窍技能 — 失败自动搜，解决自动写，跨 Agent 共享
-
-**当前版本: v2.5.1**
+**版本**: v2.6.0 | **适用系统**: macOS / Linux / Windows
 
 ---
 
-## 核心定位
+## 📚 简介
 
-**遇到问题 → 先搜经验诀窍 → 解决后写入**
+rocky-know-how 是一个经验诀窍技能，帮助 AI Agent 在失败中学习、在成功后记录。
 
-大中华 AI 开发团队的核心记忆系统，完全对齐 self-improving 架构。踩过的坑不再踩第二遍。
-
----
-
-## 核心功能
-
-| 功能 | 脚本 | 说明 |
-|------|------|------|
-| 搜索经验 | `search.sh` | 关键词/tag/领域/语义多维搜索 |
-| 写入经验 | `record.sh` | 踩坑 → 写入，去重检测 |
-| 自动晋升 | `promote.sh` | 30天同Tag ≥3次 → 晋升HOT层 |
-| 保守降级 | `demote.sh` | 长期未用 → 降级到COLD |
-| 压缩存储 | `compact.sh` | 按层压缩，控制文件大小 |
-| 清理测试 | `clean.sh` | 清理测试条目 |
-| 统计面板 | `stats.sh` | 查看各层经验数量 |
-| 归档管理 | `archive.sh` | 手动/自动归档 |
-| 历史导入 | `import.sh` | 从 memory/*.md 导入 |
-| 安装/卸载 | `install.sh` / `uninstall.sh` | 一键安装 |
+核心功能：
+- 🔍 **失败≥2次时** → 自动搜索经验库
+- ✍️ **问题解决后** → 自动记录到经验库
+- 📊 **Tag晋升机制** → 常用经验自动升级
+- 🧹 **自动清理** → 测试数据定期清理
 
 ---
 
-## 分层存储架构
+## 🚀 快速开始
+
+### 安装
+
+```bash
+git clone https://gitee.com/rocky_tian/skill.git
+cd skill/rocky-know-how
+./scripts/install.sh
+```
+
+### 核心命令
+
+| 命令 | 用途 |
+|------|------|
+| `search.sh "关键词"` | 搜索经验库 |
+| `record.sh "问题" "踩坑" "方案" "预防" "tags"` | 记录新经验 |
+| `stats.sh` | 查看统计面板 |
+| `promote.sh` | 检查Tag晋升 |
+| `clean.sh` | 清理测试数据 |
+
+---
+
+## 📁 数据结构
 
 ```
 ~/.openclaw/.learnings/
-├── experiences.md       # 主经验数据库
-├── memory.md           # 🔥 HOT: 活跃经验
-├── corrections.md      # 纠正日志
-├── domains/            # 🌡️ WARM: 领域隔离
-├── projects/          # 🌡️ WARM: 项目隔离
-└── archive/           # ❄️ COLD: 归档
+├── experiences.md    # 主经验库（所有经验）
+├── memory.md        # HOT层（频繁使用）
+├── domains/         # WARM层（按领域分类）
+├── projects/        # WARM层（按项目分类）
+└── archive/         # COLD层（归档）
 ```
 
 ---
 
-## 核心循环
+## 🔄 v2.6.0 更新
 
-```
-接到任务 → 正常执行
-    ↓
-失败≥2次 → 搜经验诀窍（search.sh）
-    ├── 有答案 → 按答案执行
-    └── 没答案 → 继续尝试直到成功
-    ↓
-成功后 → 写入经验诀窍（record.sh）
-    ↓
-同步到 memory/*.md → memory_search 可搜到
-    ↓
-同Tag≥3次/30天 → 晋升到 HOT 层（promote.sh）
-```
+### 支持 OpenClaw 2026.4.21 新 Hook
+
+| Hook | 触发时机 | 功能 |
+|------|----------|------|
+| `before_compaction` | 会话压缩前 | 保存当前任务状态 |
+| `after_compaction` | 会话压缩后 | 记录会话总结 |
+| `before_reset` | 会话重置前 | 保存重要信息 |
+
+### 修复
+
+- **去重逻辑优化**：Tags重叠≥50%直接拦截，避免中文词汇分割问题
 
 ---
 
-## 安装
+## 📖 详细文档
 
-```bash
-# ClawHub（推荐）
-openclaw skills install rocky-know-how
-
-# 或手动
-git clone https://gitee.com/rocky_tian/skill.git
-cd skill/rocky-know-how
-bash scripts/install.sh
-```
+- [rocky-know-how/SKILL.md](./rocky-know-how/SKILL.md) - 技能配置说明
+- [rocky-know-how/README.md](./rocky-know-how/README.md) - 完整使用手册
+- [rocky-know-how/setup.md](./rocky-know-how/setup.md) - 安装配置指南
+- [rocky-know-how/operations.md](./rocky-know-how/operations.md) - 操作手册
 
 ---
 
-## 快速开始
+## 🏷️ Tag 晋升规则
 
-**搜索经验**：
-```bash
-bash ~/.openclaw/skills/rocky-know-how/scripts/search.sh "关键词"
-bash ~/.openclaw/skills/rocky-know-how/scripts/search.sh --tag "nginx,troubleshooting"
-bash ~/.openclaw/skills/rocky-know-how/scripts/search.sh --area infra
+| 条件 | 晋升结果 |
+|------|----------|
+| 30天内同一Tag出现≥3次 | → HOT层 `memory.md` |
+
+---
+
+## 📊 统计面板
+
 ```
+╔════════════════════════════════════════════╗
+║  📊 rocky-know-how 经验诀窍统计面板 v2.1.0 ║
+╚════════════════════════════════════════════╝
 
-**写入经验**：
-```bash
-bash ~/.openclaw/skills/rocky-know-how/scripts/record.sh \
-  "问题标题" \
-  "踩坑过程" \
-  "正确方案" \
-  "预防措施" \
-  "tag1,tag2" \
-  "area"
-```
+🔥 HOT (始终加载)
+  memory.md: 14 条目
 
-**查看统计**：
-```bash
-bash ~/.openclaw/skills/rocky-know-how/scripts/stats.sh
+🌡️ WARM (按需加载)
+  domains/: 3 文件
+  projects/: 2 文件
+
+❄️ COLD (归档)
+  archive/: 1 文件
+
+📚 v1 主数据 (experiences.md)
+  总条目: 45
+  本月新增: 45
 ```
 
 ---
 
-## 与 self-improving 的区别
+## 🔗 相关链接
 
-| | self-improving | rocky-know-how |
-|--|---------------|----------------|
-| **架构** | 纯文档，靠 agent 自觉 | 脚本强制，格式统一 |
-| **搜索** | agent 自己理解 | 评分排序，精确匹配 |
-| **容错** | 低（全靠自觉） | 高（脚本兜底） |
-| **分层** | 无 | HOT/WARM/COLD |
-| **晋升** | 靠 agent 写 | 自动统计 Tag 频率 |
-| **工具** | 0个脚本 | 11个bash脚本 |
-| **团队共享** | 各 agent 独立 | 共享 `.learnings/` |
+- **Gitee**: https://gitee.com/rocky_tian/skill
+- **GitHub**: https://github.com/rockytian-top/skill
+- **ClawHub**: https://clawhub.ai/skills/rocky-know-how
 
 ---
 
-## 版本历史
-
-| 版本 | 说明 |
-|------|------|
-| v2.5.1 | 退回简单版，不使用hook注入 |
-| v2.5.0 | 恢复exec+search.sh原版行为 |
-| v2.4.1 | search.sh恢复备用，memory_search优先 |
-| v2.0.0 | Full architecture refactor |
-
----
-
-## 链接
-
-- [ClawHub](https://clawhub.ai/skills/rocky-know-how)
-- [GitHub](https://github.com/rockytian-top/skill)
-- [Gitee](https://gitee.com/rocky_tian/skill)
-
----
-
-**许可证**: MIT License
+_最后更新: 2026-04-22 v2.6.0_

@@ -1,140 +1,119 @@
-# 📚 rocky-know-how
+# rocky-know-how Learning Knowledge Skill
 
-> Experience Knowledge Skill — Search on failure, write after solving, shared across agents
-
-**Current Version: v2.5.1**
+**Version**: v2.6.0 | **OS**: macOS / Linux / Windows
 
 ---
 
-## Core Feature
+## 📚 Overview
 
-**Problem → Search first. Solve → Record it.**
+rocky-know-how is a learning knowledge skill that helps AI Agents learn from failures and record successes.
 
-Rocky-know-how is a team-wide experience knowledge system aligned with self-improving architecture. Once you solve a problem, record it so you never solve it twice.
-
----
-
-## Core Functions
-
-| Function | Script | Description |
-|----------|--------|-------------|
-| Search | `search.sh` | Multi-dimensional search (keyword/tag/area/semantic) |
-| Record | `record.sh` | Write lessons, deduplication |
-| Promote | `promote.sh` | Same Tag ≥3x in 30 days → HOT layer |
-| Demote | `demote.sh` | Long unused → COLD layer |
-| Compact | `compact.sh` | Compress by layer |
-| Clean | `clean.sh` | Clean test entries |
-| Stats | `stats.sh` | View statistics |
-| Archive | `archive.sh` | Manual/auto archive |
-| Import | `import.sh` | Import from memory/*.md |
-| Install/Uninstall | `install.sh` / `uninstall.sh` | One-click setup |
+Core features:
+- 🔍 **Failed 2+ times** → Search the learnings database
+- ✍️ **Problem solved** → Record to learnings database
+- 📊 **Tag promotion** → Frequent learnings auto-upgrade
+- 🧹 **Auto-cleanup** → Test data periodic cleanup
 
 ---
 
-## Layered Storage
+## 🚀 Quick Start
+
+### Install
+
+```bash
+git clone https://gitee.com/rocky_tian/skill.git
+cd skill/rocky-know-how
+./scripts/install.sh
+```
+
+### Core Commands
+
+| Command | Usage |
+|---------|-------|
+| `search.sh "keyword"` | Search learnings |
+| `record.sh "problem" "failures" "solution" "prevention" "tags"` | Record new lesson |
+| `stats.sh` | View stats dashboard |
+| `promote.sh` | Check tag promotion |
+| `clean.sh` | Cleanup test data |
+
+---
+
+## 📁 Data Structure
 
 ```
 ~/.openclaw/.learnings/
-├── experiences.md       # Main experience database
-├── memory.md           # 🔥 HOT: Active experiences
-├── corrections.md      # Corrections log
-├── domains/            # 🌡️ WARM: Domain isolation
-├── projects/          # 🌡️ WARM: Project isolation
-└── archive/           # ❄️ COLD: Archive
+├── experiences.md    # Main database (all learnings)
+├── memory.md         # HOT layer (frequent)
+├── domains/          # WARM layer (by domain)
+├── projects/         # WARM layer (by project)
+└── archive/          # COLD layer (archived)
 ```
 
 ---
 
-## Core Loop
+## 🔄 v2.6.0 Updates
 
-```
-Task → Execute normally
-    ↓
-Failed 2+ times → Search learnings (search.sh)
-    ├── Found → Execute solution
-    └── Not found → Keep trying until success
-    ↓
-Success → Write lesson (record.sh)
-    ↓
-Sync to memory/*.md → searchable via memory_search
-    ↓
-Same Tag ≥3x/30days → Promote to HOT (promote.sh)
-```
+### Support OpenClaw 2026.4.21 New Hooks
+
+| Hook | Trigger | Function |
+|------|---------|----------|
+| `before_compaction` | Before session compaction | Save current task state |
+| `after_compaction` | After session compaction | Record session summary |
+| `before_reset` | Before session reset | Save important info |
+
+### Fixes
+
+- **Deduplication logic**: Tags overlap ≥50% blocks directly, avoiding Chinese text segmentation issues
 
 ---
 
-## Install
+## 📖 Documentation
 
-```bash
-# ClawHub (Recommended)
-openclaw skills install rocky-know-how
-
-# Or manual
-git clone https://gitee.com/rocky_tian/skill.git
-cd skill/rocky-know-how
-bash scripts/install.sh
-```
+- [rocky-know-how/SKILL.md](./rocky-know-how/SKILL.md) - Skill config
+- [rocky-know-how/README.md](./rocky-know-how/README.md) - Full manual
+- [rocky-know-how/setup.md](./rocky-know-how/setup.md) - Setup guide
+- [rocky-know-how/operations.md](./rocky-know-how/operations.md) - Operations
 
 ---
 
-## Quick Start
+## 🏷️ Tag Promotion Rules
 
-**Search**：
-```bash
-bash ~/.openclaw/skills/rocky-know-how/scripts/search.sh "keyword"
-bash ~/.openclaw/skills/rocky-know-how/scripts/search.sh --tag "nginx,troubleshooting"
-bash ~/.openclaw/skills/rocky-know-how/scripts/search.sh --area infra
+| Condition | Result |
+|-----------|--------|
+| Same Tag appears ≥3 times in 30 days | → HOT layer `memory.md` |
+
+---
+
+## 📊 Stats Dashboard
+
 ```
+╔════════════════════════════════════════════╗
+║  📊 rocky-know-how Stats Dashboard v2.1.0 ║
+╚════════════════════════════════════════════╝
 
-**Record**：
-```bash
-bash ~/.openclaw/skills/rocky-know-how/scripts/record.sh \
-  "Problem title" \
-  "Failure process" \
-  "Correct solution" \
-  "Prevention" \
-  "tag1,tag2" \
-  "area"
-```
+🔥 HOT (Always loaded)
+  memory.md: 14 entries
 
-**Stats**：
-```bash
-bash ~/.openclaw/skills/rocky-know-how/scripts/stats.sh
+🌡️ WARM (On-demand)
+  domains/: 3 files
+  projects/: 2 files
+
+❄️ COLD (Archived)
+  archive/: 1 file
+
+📚 v1 Main Data (experiences.md)
+  Total: 45 entries
+  This month: 45
 ```
 
 ---
 
-## vs self-improving
+## 🔗 Links
 
-| | self-improving | rocky-know-how |
-|--|---------------|----------------|
-| **Architecture** | Pure docs, relies on agent discipline | Scripts enforce, unified format |
-| **Search** | Agent interprets | Score ranking, precise match |
-| **Fault tolerance** | Low (relies on discipline) | High (script fallback) |
-| **Layering** | None | HOT/WARM/COLD |
-| **Promotion** | Relies on agent writing | Auto Tag frequency stats |
-| **Tools** | 0 scripts | 11 bash scripts |
-| **Team sharing** | Per-agent isolated | Shared `.learnings/` |
+- **Gitee**: https://gitee.com/rocky_tian/skill
+- **GitHub**: https://github.com/rockytian-top/skill
+- **ClawHub**: https://clawhub.ai/skills/rocky-know-how
 
 ---
 
-## Version History
-
-| Version | Description |
-|---------|-------------|
-| v2.5.1 | Reverted to simple version, no hook injection |
-| v2.5.0 | Restored exec+search.sh original behavior |
-| v2.4.1 | search.sh restored as backup, memory_search preferred |
-| v2.0.0 | Full architecture refactor |
-
----
-
-## Links
-
-- [ClawHub](https://clawhub.ai/skills/rocky-know-how)
-- [GitHub](https://github.com/rockytian-top/skill)
-- [Gitee](https://gitee.com/rocky_tian/skill)
-
----
-
-**License**: MIT License
+_Last updated: 2026-04-22 v2.6.0_

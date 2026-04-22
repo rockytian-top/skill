@@ -1,140 +1,238 @@
-# 📚 rocky-know-how
+# rocky-know-how Complete User Manual
 
-> OpenClaw experience & know-how skill — auto-search on repeated failures, auto-record on success, shared across all agents
+**Version**: v2.6.0 | **OS**: macOS / Linux / Windows
 
-[中文](./README.md) | English
+---
 
-## ✨ Features
+## 📚 Overview
 
-- 🔍 **Smart Search** — Multi-keyword AND matching + relevance scoring
-- 🏷️ **Tag/Area Filter** — `--tag` and `--area` for precise filtering
-- 🔄 **Auto Dedup** — Question text + Tags combination deduplication
-- 📝 **Native Memory Sync** — Writes to memory/*.md, searchable via memory_search
-- 🌙 **Dreaming Integration** — Annotated markers for Dreaming phase analysis
-- 📊 **Tag Promotion** — Same Tag ≥3 times auto-writes to TOOLS.md
-- 📥 **Historical Import** — Batch extract lessons from memory/*.md
-- 🗄️ **Auto Archive** — Auto-archive entries older than 30 days
-- 🌐 **Cross-Agent Sharing** — Global storage, all agents share the same data
+rocky-know-how is a learning knowledge skill that helps AI Agents learn from failures and record successes.
 
-## 🔒 Security
+Core features:
+- 🔍 **Failed 2+ times** → Search the learnings database
+- ✍️ **Problem solved** → Record to learnings database
+- 📊 **Tag promotion** → Frequent learnings auto-upgrade
+- 🧹 **Auto-cleanup** → Test data periodic cleanup
 
-| Measure | Description |
-|---------|-------------|
-| No system commands | Only reads/writes local files |
-| No sensitive data | Only stores experience text |
-| No network requests | Pure local operations |
-| Open source auditable | MIT License |
-| Dynamic paths | No hardcoded user paths |
-
-## 📦 Scripts
-
-| Script | Description |
-|--------|-------------|
-| search.sh | Search experiences (relevance scoring, tag/area filter, preview mode) |
-| record.sh | Record experience (dedup, dry-run, Dreaming markers) |
-| stats.sh | Statistics dashboard (entry count, Area/Tag distribution) |
-| promote.sh | Tag promotion check (≥3 times auto-writes TOOLS.md) |
-| import.sh | Batch import historical lessons from memory/*.md |
-| archive.sh | Archive old entries (manual/auto mode) |
-| clean.sh | Cleanup tool (test entries/old index) |
-| install.sh | Install script |
-| uninstall.sh | Uninstall script |
+---
 
 ## 🚀 Installation
 
-### ClawHub (Recommended)
+### Method 1: Auto Install
+
 ```bash
-openclaw skills install rocky-know-how
+git clone https://gitee.com/rocky_tian/skill.git
+cd skill/rocky-know-how
+./scripts/install.sh
 ```
 
-### Manual
-```bash
-git clone https://github.com/rockytian-top/openclaw-rocky-skills.git
-cd openclaw-rocky-skills/rocky-know-how
-bash scripts/install.sh
+### Method 2: Manual Install
+
+1. Copy `scripts/` to `~/.openclaw/skills/rocky-know-how/`
+2. Configure Hook (optional, OpenClaw 2026.4.21+):
+   ```bash
+   # Add to openclaw.json:
+   "hooks": {
+     "internal": {
+       "load": {
+         "extraDirs": [
+           "~/.openclaw/skills/rocky-know-how/hooks"
+         ]
+       }
+     }
+   }
+   ```
+
+---
+
+## 📁 Data Structure
+
+```
+~/.openclaw/.learnings/
+├── experiences.md    # Main database (all learnings)
+├── corrections.md    # Corrections log
+├── memory.md         # HOT layer (frequent, always loaded)
+├── domains/          # WARM layer (by domain)
+│   ├── code.md
+│   ├── general.md
+│   └── infra.md
+├── projects/         # WARM layer (by project)
+└── archive/          # COLD layer (archived)
 ```
 
-## 📖 Usage
+---
 
-### Search
+## 🎯 Core Commands
+
+### 1. Search Learnings `search.sh`
+
 ```bash
-# Multi-keyword search (relevance scoring)
-bash scripts/search.sh "debug" "website"
+# Basic search
+bash scripts/search.sh "nginx 502"
 
-# By tags (AND logic)
-bash scripts/search.sh --tag "troubleshooting,vps"
-
-# By area
-bash scripts/search.sh --area infra
+# View all
+bash scripts/search.sh --all
 
 # Preview mode
 bash scripts/search.sh --preview "keyword"
 
-# List all
-bash scripts/search.sh --all
+# Filter by tag
+bash scripts/search.sh --tag "php-fpm"
+
+# Filter by area
+bash scripts/search.sh --area "infra"
 ```
 
-### Record
+### 2. Record Lesson `record.sh`
+
 ```bash
-# Normal record
-bash scripts/record.sh "Problem" "What went wrong" "Solution" "Prevention" "tag1,tag2" "area"
+# Basic record
+bash scripts/record.sh "problem" "failures" "solution" "prevention" "tag1,tag2" "area"
 
-# Dry-run (preview only)
-bash scripts/record.sh --dry-run "Problem" "Mistakes" "Solution" "Prevention" "tags"
+# Preview mode (no actual write)
+bash scripts/record.sh --dry-run "problem" "failures" "solution" "prevention" "tags" "area"
+
+# Specify namespace
+bash scripts/record.sh --namespace "project:myapp" "problem" "failures" "solution" "prevention" "tags" "area"
 ```
 
-### Import / Archive
+### 3. Stats Dashboard `stats.sh`
+
 ```bash
-# Import from memory
-bash scripts/import.sh --dry-run    # Preview first
-bash scripts/import.sh              # Actual import
-
-# Manual archive
-bash scripts/archive.sh --dry-run   # Preview
-bash scripts/archive.sh             # Archive
-
-# Auto archive (for cron/heartbeat)
-bash scripts/archive.sh --auto
+bash scripts/stats.sh
 ```
 
-## 🔄 Core Loop
-
+Output example:
 ```
-Task received → Execute normally
-    ↓
-Failed ≥2 times → Search experiences (search.sh)
-    ├── Found → Follow the solution
-    └── Not found → Keep trying until success
-    ↓
-Success → Record experience (record.sh)
-    ↓
-Sync to memory/*.md → searchable via memory_search
-    ↓
-Same Tag ≥3 times → Promote to TOOLS.md (promote.sh)
-```
+╔════════════════════════════════════════════╗
+║  📊 rocky-know-how Stats Dashboard v2.1.0 ║
+╚════════════════════════════════════════════╝
 
-## 📂 Storage
+🔥 HOT (Always loaded)
+  memory.md: 14 entries
 
-```
-~/.openclaw/.learnings/
-├── experiences.md          ← Experience data (globally shared)
-└── archive/                ← Archive directory
-    └── YYYY-MM/            ← Monthly archives
+🌡️ WARM (On-demand)
+  domains/: 3 files
+  projects/: 2 files
+
+📚 v1 Main Data (experiences.md)
+  Total: 45 entries
 ```
 
-## 🔧 Compatibility
+### 4. Tag Promotion Check `promote.sh`
 
-- ✅ macOS bash 3.x (no `=~`, no GNU extensions)
-- ✅ Node.js 18+ (CommonJS, no TypeScript dependency)
-- ✅ macOS / Linux
-- ✅ OpenClaw 2026.4.x+
+```bash
+bash scripts/promote.sh
+```
 
-## 📄 License
+### 5. Cleanup Test Data `clean.sh`
 
-[MIT License](./LICENSE)
+```bash
+# Preview
+bash scripts/clean.sh --dry-run
+
+# Execute cleanup
+bash scripts/clean.sh
+```
+
+---
+
+## 🔄 v2.6.0 Updates
+
+### Support OpenClaw 2026.4.21 New Hooks
+
+| Hook | Trigger | Function |
+|------|---------|----------|
+| `before_compaction` | Before session compaction | Save current task state to temp file |
+| `after_compaction` | After session compaction | Read state, record session summary to session-summaries.md |
+| `before_reset` | Before session reset | Save important info |
+
+### Deduplication Logic Optimization
+
+- **Old logic**: Tags overlap ≥60% + text similarity ≥70% blocks
+- **New logic**: Tags overlap ≥50% blocks directly
+- **Reason**: Chinese text segmentation caused similarity calculation errors
+
+---
+
+## 🏷️ Tag Promotion Rules
+
+| Condition | Result |
+|-----------|--------|
+| Same Tag appears ≥3 times in 30 days | → HOT layer `memory.md` |
+| No access for 30 days | → Auto demote to COLD layer |
+
+---
+
+## 📋 Entry Format
+
+```markdown
+## [EXP-20260422-001] Problem Title
+
+**Area**: infra
+**Failed-Count**: ≥2
+**Tags**: nginx, 502, php-fpm
+**Created**: 2026-04-22 10:00:00
+**Namespace**: global
+
+### Problem
+Problem description
+
+### Failures
+1st attempt: ... → Failed
+2nd attempt: ... → Failed
+
+### Solution
+Correct solution
+
+### Prevention
+How to avoid this pitfall
+```
+
+---
+
+## ⚙️ Configuration
+
+### Environment Variables
+
+| Variable | Description | Default |
+|----------|-------------|---------|
+| `OPENCLAW_STATE_DIR` | State directory | `~/.openclaw` |
+| `OPENCLAW_WORKSPACE` | Workspace directory | Auto-detect |
+| `OPENCLAW_SESSION_KEY` | Session key | Auto-get |
+
+### Hook Configuration (Optional)
+
+Add to `openclaw.json`:
+
+```json
+{
+  "hooks": {
+    "internal": {
+      "load": {
+        "extraDirs": [
+          "~/.openclaw/skills/rocky-know-how/hooks"
+        ]
+      }
+    }
+  }
+}
+```
+
+---
 
 ## 🔗 Links
 
-- [ClawHub](https://clawhub.ai/skills/rocky-know-how)
-- [GitHub](https://github.com/rockytian-top/openclaw-rocky-skills)
-- [Gitee](https://gitee.com/rocky_tian/skill)
+- **Gitee**: https://gitee.com/rocky_tian/skill
+- **GitHub**: https://github.com/rockytian-top/skill
+- **ClawHub**: https://clawhub.ai/skills/rocky-know-how
+
+---
+
+## 📄 License
+
+MIT License
+
+---
+
+_Last updated: 2026-04-22 v2.6.0_
