@@ -171,7 +171,7 @@ check_duplicate() {
       local sorted_new=$(echo "$TAGS" | tr ',' '\n' | sed 's/^ *//;s/ *$//' | sort | tr '\n' ',' | sed 's/,$//')
       local sorted_exist=$(echo "$exist_tags" | sed 's/  */ /g' | tr ' ' '\n' | sort | tr '\n' ',' | sed 's/,$//')
 
-      # 检查 Tags 重叠度（重叠≥60% 即通过）
+      # 检查 Tags 重叠度（重叠≥50% 即拦截）
       local new_tag_set=$(echo "$sorted_new" | tr ',' '\n' | grep -v '^$' | sort -u)
       local exist_tag_set=$(echo "$sorted_exist" | tr ',' '\n' | grep -v '^$' | sort -u)
       local tag_total=$(echo "$new_tag_set" | wc -l | tr -d ' ')
