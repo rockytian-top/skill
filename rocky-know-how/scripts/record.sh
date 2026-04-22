@@ -181,22 +181,11 @@ check_duplicate() {
       done < <(echo "$new_tag_set")
       [ "$tag_total" -eq 0 ] && tag_total=1
       local tag_ratio=$((tag_match * 100 / tag_total))
-      if [ "$tag_ratio" -ge 60 ]; then
-        # Tags 重叠度达标，做文字相似度检查（≥70%）
-        local new_words=$(echo "$PROBLEM" | tr ' ' '\n' | grep -v '^$' | sort -u)
-        local exist_words=$(echo "$exist_problem" | tr ' ' '\n' | grep -v '^$' | sort -u)
-        local total=$(echo "$new_words" | wc -l | tr -d ' ')
-        [ "$total" -eq 0 ] && { prev=$line; continue; }
-        local match=0
-        while IFS= read -r w; do
-          echo "$exist_words" | grep -qF --color=never "$w" && match=$((match+1))
-        done < <(echo "$new_words")
-        local ratio=$((match * 100 / total))
-        if [ "$ratio" -ge 70 ]; then
-          found_id="$exist_id"
-          found_summary="$exist_problem"
-          break
-        fi
+      if [ "$tag_ratio" -ge 50 ]; then
+        # Tags 重叠度≥50%即拦截（不需要文字相似度检查）
+        found_id="$exist_id"
+        found_summary="$exist_problem"
+        break
       fi
       prev=$line
     done
