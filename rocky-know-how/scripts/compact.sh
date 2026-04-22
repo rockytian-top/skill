@@ -107,7 +107,7 @@ merge_similar_entries() {
     else
       current_entry="$current_entry$line\n"
     fi
-  done
+  done < <(echo "$other_entries")
   if [ -n "$current_entry" ]; then
     merged="$merged$current_entry"
   fi
