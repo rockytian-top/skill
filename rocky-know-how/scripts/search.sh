@@ -207,10 +207,10 @@ search_experiences_file() {
 
   [ ! -f "$TMPDIR_KH/scores.txt" ] && return 1
 
-  { sort -rn -k1,1 "$TMPDIR_KH/scores.txt" | head -$MAX_RESULTS; } 2>/dev/null | while read -r s idx; do
+  while read -r s idx; do
     print_block "$TMPDIR_KH/block_${idx}.md" "$s" "$total_kw"
     found=$((found+1))
-  done
+  done < <({ sort -rn -k1,1 "$TMPDIR_KH/scores.txt" | head -$MAX_RESULTS; } 2>/dev/null)
 
   return 0
 }

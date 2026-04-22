@@ -205,7 +205,8 @@ init_file "$ERRORS_FILE" "# 经验诀窍"
 
 # 去重检查
 if ! $DRY_RUN && check_duplicate; then
-  exit 0
+  echo "(未写入，因与已有条目重复)"
+  exit 1
 fi
 
 ID=$(generate_id)

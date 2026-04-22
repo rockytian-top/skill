@@ -233,7 +233,7 @@ process_entries() {
   if [ -n "$archive_entries" ]; then
     echo ""
     echo "--- 需要归档到 COLD 的条目 ---"
-    echo "$archive_entries" | while IFS='|' read -r action date content; do
+    while IFS='|' read -r action date content; do
       # 提取 Tag 或 Pattern
       local tag=$(echo "$content" | grep -E "^\- \*\*Tag" | sed 's/.*\*\*Tag:\*\* *//' | head -1)
       local pattern=$(echo "$content" | grep -E "^\- \*\*Pattern" | sed 's/.*\*\*Pattern:\*\* *//' | head -1)
@@ -302,7 +302,7 @@ process_entries() {
         
         archive_count=$((archive_count + 1))
       fi
-    done
+    done < <(echo "$archive_entries")
   fi
   
   echo ""
