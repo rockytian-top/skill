@@ -272,10 +272,11 @@ search_layered_file() {
 
 # --all 模式
 if $SHOW_ALL; then
+  any_content=0
   echo "=== 全部经验诀窍 ==="
   echo ""
   echo "─── v1 主数据 (experiences.md) ───"
-  [ -f "$ERRORS_FILE" ] && format_all "$ERRORS_FILE"
+  [ -f "$ERRORS_FILE" ] && { format_all "$ERRORS_FILE"; any_content=1; }
   echo ""
   echo "─── HOT 层 (memory.md) ───"
   [ -f "$MEMORY_FILE" ] && cat "$MEMORY_FILE" || echo "  (空)"
@@ -296,31 +297,56 @@ if $SHOW_ALL; then
       echo ""
     done
   fi
-  exit 0
+  if [ "$any_content" = "1" ]; then
+    exit 0
+  else
+    echo "(无数据)"
+    exit 1
+  fi
 fi
 
 # 层过滤模式
 if [ -n "$FILTER_LAYER" ]; then
+  layer_has_content=0
   case "$FILTER_LAYER" in
     hot)
       echo "─── HOT: memory.md ───"
-      [ -f "$MEMORY_FILE" ] && cat "$MEMORY_FILE" || echo "(空)"
+      if [ -f "$MEMORY_FILE" ] && [ -s "$MEMORY_FILE" ]; then
+        cat "$MEMORY_FILE"
+        layer_has_content=1
+      else
+        echo "(空)"
+      fi
       ;;
     warm)
       echo "─── WARM: domains/ + projects/ ───"
-      [ -d "$DOMAINS_DIR" ] && ls "$DOMAINS_DIR"/*.md 2>/dev/null && for f in "$DOMAINS_DIR"/*.md; do
-        [ -f "$f" ] && echo "📄 $(basename "$f"):" && cat "$f" && echo ""
-      done
-      [ -d "$PROJECTS_DIR" ] && for f in "$PROJECTS_DIR"/*.md; do
-        [ -f "$f" ] && echo "📄 $(basename "$f"):" && cat "$f" && echo ""
-      done
+      if [ -d "$DOMAINS_DIR" ] && [ "$(ls -A "$DOMAINS_DIR"/*.md 2>/dev/null)" ]; then
+        for f in "$DOMAINS_DIR"/*.md; do
+          [ -f "$f" ] && echo "📄 $(basename "$f"):" && cat "$f" && echo "" && layer_has_content=1
+        done
+      fi
+      if [ -d "$PROJECTS_DIR" ] && [ "$(ls -A "$PROJECTS_DIR"/*.md 2>/dev/null)" ]; then
+        for f in "$PROJECTS_DIR"/*.md; do
+          [ -f "$f" ] && echo "📄 $(basename "$f"):" && cat "$f" && echo "" && layer_has_content=1
+        done
+      fi
+      [ "$layer_has_content" = "0" ] && echo "(空)"
       ;;
     cold)
       echo "─── COLD: archive/ ───"
-      [ -d "$ARCHIVE_DIR" ] && find "$ARCHIVE_DIR" -name "*.md" -exec echo "📦 {}:" \; -exec head -10 {} \; 2>/dev/null || echo "(空)"
+      if [ -d "$ARCHIVE_DIR" ] && [ "$(find "$ARCHIVE_DIR" -name "*.md" 2>/dev/null)" ]; then
+        find "$ARCHIVE_DIR" -name "*.md" -exec echo "📦 {}:" \; -exec head -10 {} \; 2>/dev/null
+        layer_has_content=1
+      else
+        echo "(空)"
+      fi
       ;;
   esac
-  exit 0
+  if [ "$layer_has_content" = "1" ]; then
+    exit 0
+  else
+    exit 1
+  fi
 fi
 
 # Domain 搜索（无关键词时直接展示全部内容）

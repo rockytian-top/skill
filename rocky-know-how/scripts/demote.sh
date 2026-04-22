@@ -226,7 +226,7 @@ process_entries() {
         
         demote_count=$((demote_count + 1))
       fi
-    done
+    done < <(echo "$demote_entries")
   fi
   
   # 处理需要归档到 COLD 的条目

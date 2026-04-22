@@ -225,10 +225,10 @@ compact_file() {
       
       # 保留最近50个日期（倒序的前50个，即最早的那些日期）
       local dates_to_keep=$(echo "$all_dates" | tail -50)
-      local to_archive=$((total_dates > 50 ? total_dates - 50 : 0))
+      local to_archive=$((total_dates - 50))
       local dates_to_archive=$(echo "$all_dates" | head -$to_archive)
       
-      echo "    📊 总日期数: ${total_dates}, 保留: 50, 归档: $((total_dates > 50 ? total_dates - 50 : 0))"
+      echo "    📊 总日期数: ${total_dates}, 保留: 50, 归档: $((total_dates - 50))"
       
       # 创建临时文件
       local tmp_kept="/tmp/rocky-know-how-corr-kept-$$.md"
