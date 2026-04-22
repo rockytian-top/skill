@@ -107,7 +107,7 @@ merge_similar_entries() {
     else
       current_entry="$current_entry$line\n"
     fi
-  done < <(echo "$other_entries")
+  done
   if [ -n "$current_entry" ]; then
     merged="$merged$current_entry"
   fi
@@ -383,14 +383,14 @@ if [ -d "$DOMAINS_DIR" ]; then
   for f in "$DOMAINS_DIR"/*.md; do
     [ ! -f "$f" ] && continue
     check_and_compact "$f" "$WARM_LIMIT" "$(basename "$f")"
-  done < <(echo "$other_entries")
+  done
 fi
 
 if [ -d "$PROJECTS_DIR" ]; then
   for f in "$PROJECTS_DIR"/*.md; do
     [ ! -f "$f" ] && continue
     check_and_compact "$f" "$WARM_LIMIT" "$(basename "$f")"
-  done < <(echo "$other_entries")
+  done
 fi
 
 echo ""
