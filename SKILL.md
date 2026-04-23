@@ -1,10 +1,11 @@
 ---
 name: rocky-know-how
 slug: rocky-know-how
-version: 2.8.4
+version: 2.8.5
 homepage: https://clawhub.ai/skills/rocky-know-how
-description: "Learning knowledge skill v2.8.4 — Search learnings when failing 2+ times, write after solving. Layered storage (HOT/WARM/COLD), auto-promotion/demotion, 4-event hook integration (bootstrap/before_compaction/after_compaction/before_reset), one-click install. Fixes: H1 (FILTER_DOMAIN/FILTER_PROJECT regex injection), H2 (agentId path traversal), concurrent write atomicity, format_all robustness, OPENCLAW_STATE_DIR support. New: comprehensive auto-record documentation, QUICKSTART guide, detailed workflow diagrams."
+description: "Learning knowledge skill v2.8.5 — Search learnings when failing 2+ times, write after solving. Layered storage (HOT/WARM/COLD), auto-promotion/demotion, 4-event hook integration. Core innovations: (1) Auto-record mechanism, (2) Vector search with LM Studio, (3) Auto-fallback when no embedding model. Fixes: H1 (regex injection), H2 (path traversal), concurrent write lock, format_all robustness, OPENCLAW_STATE_DIR support."
 changelog: |
+  v2.8.5: 文档完善 - 新增 advanced-features.md 详细说明三大核心创新（自动写入、向量搜索、自动降级），README 顶部突出展示
   v2.8.4: 文档完善 - 新增 QUICKSTART.md，详细说明自动写入流程、触发条件、使用场景、验证步骤
   v2.8.3: 安全修复 (H1/H2)，compact.sh memory.md压缩优化，memory.md 111→18行
   v2.8.2: 一键安装脚本 (install.sh)，自动配置4个Hook事件，auto-restart网关
