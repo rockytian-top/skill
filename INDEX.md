@@ -18,6 +18,7 @@
 
 | 文档 | 内容 | 适合人群 |
 |------|------|----------|
+| **[ARCHITECTURE.md](./ARCHITECTURE.md)** | 🆕 完整架构设计（组件/数据流/Hook/存储/安全/扩展） | 开发者、架构师 |
 | **[README.md](./README.md)** | 功能特性列表、安全保障、脚本概览 | 所有用户 |
 | **[README_EN.md](./README_EN.md)** | English version | 英文用户 |
 | **[advanced-features.md](./advanced-features.md)** | 🆕 三大核心创新技术深挖 | 高级用户、开发者 |
@@ -98,6 +99,7 @@
 | 任务 | 查阅文档 | 具体章节 |
 |------|---------|---------|
 | **安装技能** | setup.md | "🚀 快速安装" |
+| **理解架构** | ARCHITECTURE.md | "整体架构图"、"Hook时序"、"数据流" |
 | **验证功能** | setup.md | "✅ 验证安装" |
 | **搜索经验** | operations.md | "🔍 搜索经验" 表格 |
 | **理解自动草稿** | README.md、advanced-features.md | "自动草稿机制"、"两阶段设计" |
