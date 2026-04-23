@@ -1,17 +1,18 @@
 /**
  * rocky-know-how Hook for OpenClaw
  *
- * v2.8.3 - 支持 OpenClaw 2026.4.21 新 Hook
+ * v2.8.14 - before_reset 全自动草稿审核集成
  * - agent/bootstrap: 启动时注入经验诀窍提醒
  * - before_compaction: 压缩前保存任务状态
  * - after_compaction: 压缩后记录会话总结
- * - before_reset: 重置前保存重要信息
+ * - before_reset: 生成草稿 → 自动审核 → 写入经验
  *
- * @version 2.8.2
+ * @version 2.8.14
  */
 
-const { existsSync, readFileSync, writeFileSync, appendFileSync } = require('fs');
+const { existsSync, readFileSync, writeFileSync, appendFileSync, unlinkSync, mkdirSync } = require('fs');
 const { join } = require('path');
+const { execSync } = require('child_process');
 
 /**
  * 从 sessionKey 提取 agent ID 并构造工作区路径
@@ -58,6 +59,89 @@ function findScriptsDir(sessionKey, env) {
 function getLearningsDir(env) {
   const openclawDir = env.OPENCLAW_STATE_DIR || `${env.HOME || '~'}/.openclaw`;
   return `${openclawDir}/.learnings`;
+}
+
+/**
+ * 执行 auto-review.sh 全自动审核
+ */
+function runAutoReview(scriptsDir, learningsDir) {
+  try {
+    const autoReviewScript = join(scriptsDir, 'auto-review.sh');
+    if (!existsSync(autoReviewScript)) {
+      console.log('[rocky-know-how] auto-review.sh not found, skipping');
+      return;
+    }
+    
+    // 执行 auto-review.sh
+    execSync(`bash "${autoReviewScript}"`, {
+      cwd: learningsDir,
+      stdio: 'pipe',
+      timeout: 30000
+    });
+    console.log('[rocky-know-how] auto-review.sh completed');
+  } catch (e) {
+    console.log('[rocky-know-how] auto-review.sh failed:', e.message);
+  }
+}
+
+/**
+ * 生成草稿文件
+ */
+function generateDraft(sessionKey, env, messages) {
+  const learningsDir = getLearningsDir(env);
+  const draftsDir = join(learningsDir, 'drafts');
+  
+  // 确保 drafts 目录存在
+  if (!existsSync(draftsDir)) {
+    mkdirSync(draftsDir, { recursive: true });
+  }
+  
+  const { task, tools, errors } = extractContextFromMessages(messages);
+  
+  // 只有"有任务 + 有错误"才生成草稿
+  if (!task || errors.length === 0) {
+    console.log('[rocky-know-how] No task or errors, skipping draft generation');
+    return null;
+  }
+  
+  const timestamp = Date.now();
+  const draftId = `draft-${timestamp}-${sessionKey.replace(/[^a-zA-Z0-9]/g, '')}`;
+  const draftFile = join(draftsDir, `${draftId}.json`);
+  
+  const draft = {
+    id: draftId,
+    createdAt: new Date().toISOString(),
+    sessionKey,
+    shouldCreate: true,
+    problem: task,
+    tried: errors.join('; '),
+    solution: "待补充",
+    tags: tools.length > 0 ? tools.slice(0, 5) : ['unknown'],
+    area: inferArea(task),
+    status: 'pending_review'
+  };
+  
+  try {
+    writeFileSync(draftFile, JSON.stringify(draft, null, 2), 'utf8');
+    console.log(`[rocky-know-how] Draft generated: ${draftId}`);
+    return draftId;
+  } catch (e) {
+    console.log('[rocky-know-how] Failed to generate draft:', e.message);
+    return null;
+  }
+}
+
+/**
+ * 从任务推断领域
+ */
+function inferArea(task) {
+  if (!task) return 'global';
+  const lower = task.toLowerCase();
+  if (/nginx|apache|web|server|mysql|redis|mongodb|docker|k8s|kubernetes/i.test(lower)) return 'infra';
+  if (/php|java|python|code|git|merge|compile|build/i.test(lower)) return 'code';
+  if (/wechat|weixin|wx|公众号|小程序/i.test(lower)) return 'wx.newstt';
+  if (/test|测试|qa/i.test(lower)) return 'test';
+  return 'global';
 }
 
 /**
@@ -277,11 +361,24 @@ const handler = async (event) => {
   }
   
   // ============================================================
-  // 4. before_reset - 重置前保存重要信息
+  // 4. before_reset - 重置前生成草稿 + 自动审核
   // ============================================================
   if (event.type === 'before_reset') {
     const messages = event.messages || event.context?.messages || [];
+    
+    // 生成草稿
+    const draftId = generateDraft(sessionKey, env, messages);
+    
+    // 保存状态
     saveCompactionState(sessionKey, env, messages);
+    
+    // 如果生成了草稿，自动调用 auto-review.sh
+    if (draftId) {
+      const scriptsDir = findScriptsDir(sessionKey, env);
+      const learningsDir = getLearningsDir(env);
+      runAutoReview(scriptsDir, learningsDir);
+    }
+    
     return;
   }
 };
