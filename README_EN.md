@@ -17,6 +17,7 @@
 - 🌐 **Cross-Agent Sharing** — Global storage, all agents share the same data
 - 🔒 **Security Hardened** — Path traversal detection, regex escaping, input validation
 - ⚡ **Concurrent Safe** — Directory lock protects multi-process writes
+- 🤖 **Auto-Record Mechanism** — Auto-search on 2nd failure, auto-record on success (Hook integrated)
 
 ## 🔒 Security
 

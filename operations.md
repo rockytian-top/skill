@@ -23,7 +23,63 @@
 2. 检查 index.md 了解上下文提示
 3. 检测到项目 → 预加载相关命名空间
 
-### 收到纠正时
+### 任务失败处理（v2.8.3 自动搜索）
+
+当任务失败时，Agent 自动执行：
+
+```
+第 1 次失败 → 标记任务状态，继续尝试
+    ↓
+第 2 次失败 → 🔍 自动搜索经验 (search.sh)
+    ├── 找到相关经验 → 应用方案
+    └── 没找到 → 记录为"待学习"，继续尝试
+```
+
+**触发条件**: 同一任务连续失败 ≥2 次
+**搜索范围**: 所有层（HOT/WARM/COLD）
+**输出**: 相关经验列表，按相关度排序
+
+---
+
+### 任务成功处理（v2.8.3 自动写入）
+
+当任务成功完成后，Agent 自动执行：
+
+```
+成功 → 📝 自动写入经验 (record.sh)
+    ↓
+检查重复（问题文本 + Tags 70%重叠）
+    ↓
+新经验？ → 生成 ID (EXP-YYYYMMDD-HHMM)
+    ↓
+持有 .write_lock 目录锁
+    ↓
+写入 experiences.md
+    ↓
+同步到 memory/*.md（根据命名空间）
+    ↓
+同 Tag ≥3 次？ → 触发 promote.sh
+```
+
+**关键规则**:
+- ✅ **去重**: 问题文本相似度 ≥70% 或 Tags 完全相同的拦截
+- ✅ **并发锁**: `.write_lock` 目录锁确保多进程安全
+- ✅ **命名空间**: 根据任务类型自动选择 global/domain/project
+- ✅ **同步**: 同时更新 experiences.md 和对应 memory/*.md
+
+**示例**:
+```
+任务: 修复 Nginx 502 错误
+成功方案: 重启 php-fpm，调整 pm.max_children
+自动写入:
+  → experiences.md (ID: EXP-20260424-0117)
+  → domains/infra.md (Tag: nginx,php-fpm)
+  → memory.md (摘要: "Nginx 502: restart php-fpm")
+```
+
+---
+
+### 收到纠正时（手动/自动）
 
 ```
 1. 解析纠正类型（偏好、模式、覆盖）
@@ -39,15 +95,20 @@
 7. 更新 index.md 行数
 ```
 
-### 模式匹配时
+---
 
-应用学到的模式时：
-```
-1. 找到模式来源（file:line）
-2. 应用模式
-3. 引用来源："使用 X（来自 memory.md:15）"
-4. 记录使用（用于衰减跟踪）
-```
+### Hook 事件自动触发
+
+| 事件 | 触发时机 | 自动操作 | 版本 |
+|------|----------|----------|------|
+| `agent:bootstrap` | AI 启动 | 加载 memory.md，注入经验提醒 | v2.8.3+ |
+| `before_compaction` | 压缩前 | 分析会话，生成经验草稿 | v2.8.3+ |
+| `after_compaction` | 压缩后 | 记录会话摘要到 reflections.md | v2.8.3+ |
+| `before_reset` | 重置前 | 保存状态，生成最终草稿 | v2.8.3+ |
+
+**Hook 配置**: install.sh 已自动配置到 openclaw.json
+
+---
 
 ### 循环维护（心跳）
 
@@ -60,24 +121,150 @@
 6. 生成摘要（可选）
 ```
 
-## 文件格式
+**心跳触发**: 通过 HEARTBEAT.md 配置，通常每 30 分钟一次
+**安全规则**: 大多数心跳运行应该什么都不做，只做保守组织
 
-### memory.md (HOT)
+---
 
-```markdown
-# Self-Improving Memory
+## 自动写入完整流程图示
 
-## 已确认偏好
-- format: bullet points over prose (confirmed 2026-01)
-- tone: direct, no hedging (confirmed 2026-01)
-
-## 活跃模式
-- "looks good" = approval to proceed (used 15x)
-- single emoji = acknowledged (used 8x)
-
-## 最近（最近7天）
-- prefer SQLite for MVPs (corrected 02-14)
 ```
+┌─────────────┐
+│  任务开始   │
+└──────┬──────┘
+       │
+       ▼
+┌─────────────┐
+│ 执行任务    │
+└──────┬──────┘
+       │
+       ├─失败1次→继续尝试
+       │
+       ▼
+┌─────────────┐
+│ 失败 2 次   │ ← 自动搜索 (search.sh)
+└──────┬──────┘      ↓
+       │        找到经验？
+       │           ├─是 → 按方案执行
+       │           └─否 → 继续尝试
+       ▼
+┌─────────────┐
+│  任务成功   │ ← 自动写入 (record.sh)
+└──────┬──────┘      ↓
+       │        去重检查 (70%)
+       │           ├─重复 → 跳过
+       │           └─新经验 → 写入
+       ▼
+┌─────────────┐
+│ 经验已记录  │
+└──────┬──────┘
+       │
+       ▼
+┌─────────────┐
+│ 同 Tag ≥3？ │ ← 自动晋升 (promote.sh)
+└──────┬──────┘      ↓
+       │        写入 TOOLS.md
+       ▼
+┌─────────────┐
+│  循环完成   │
+└─────────────┘
+```
+
+---
+
+**关键版本**: v2.8.3+ 完整自动机制
+**前置条件**: Hook 正确配置（install.sh 自动配置）
+
+## 典型使用场景 (v2.8.3)
+
+### 场景 1: 调试 Nginx 502 错误
+
+```
+1. 任务: 修复网站 502 错误
+2. 第 1 次失败 → 继续尝试
+3. 第 2 次失败 → 🔍 自动搜索 "502 nginx"
+   找到经验: "Nginx 502: restart php-fpm" (EXP-20260420-001)
+4. 按方案执行 → 成功 ✅
+5. 📝 自动写入（如果经验不存在）：
+   问题: Nginx 502 错误
+   过程: 检查 upstream 超时，php-fpm 进程数不足
+   方案: 重启 php-fpm，调整 pm.max_children=50
+   预防: 监控 php-fpm 内存，设置告警
+   Tags: nginx,php-fpm,502
+   Area: infra
+```
+
+### 场景 2: 公众号开发 OCR 识别
+
+```
+1. 任务: 实现图片文字识别
+2. 失败 2 次 → 自动搜索 "OCR 图片识别"
+   找到: "微信公众号 OCR: 使用百度 API，需转 base64" (EXP-20260418-003)
+3. 执行 → 成功
+4. 自动写入新经验（如果是新问题）
+   同步到: domains/wx.newstt.md
+   Tag 晋升: 同 Tag "ocr" 使用 3 次后 → TOOLS.md
+```
+
+### 场景 3: 用户明确说"记住这个"
+
+```
+User: "记住：以后所有 API 响应必须带 error_code 字段"
+↓
+Agent: 立即记录纠正（手动触发）
+  → corrections.md
+  → 计数+1
+  → 3 次后询问确认
+  → 确认后晋升为偏好
+```
+
+---
+
+## 自动 vs 手动写入对比
+
+| 特性 | 自动写入 | 手动写入 |
+|------|----------|----------|
+| 触发 | 任务成功（隐含） | 用户明确指令 |
+| 时机 | 任务完成后立即 | 随时 |
+| 去重 | ✅ 自动检查 | ✅ 自动检查 |
+| 锁保护 | ✅ .write_lock | ✅ .write_lock |
+| 命名空间 | 自动推断 | 用户指定 |
+| Hook 集成 | ✅ before_reset | ❌ 无 |
+| 适用场景 | 标准任务流程 | 特殊经验、教训
+
+---
+
+## 配置检查清单
+
+安装后验证自动写入是否生效：
+
+```bash
+# 1. 检查 Hook 配置
+grep -A 8 '"rocky-know-how"' ~/.openclaw/openclaw.json
+
+# 期望输出包含：
+#   "handler": "~/.openclaw/skills/rocky-know-how/hooks/handler.js"
+#   "events": ["agent:bootstrap","before_compaction","after_compaction","before_reset"]
+
+# 2. 测试自动搜索（模拟失败）
+bash ~/.openclaw/skills/rocky-know-how/scripts/search.sh "test"
+
+# 3. 查看 Hook 日志
+ tail -f ~/.openclaw/logs/gateway.log | grep rocky-know-how
+
+# 4. 验证自动写入权限
+ls -la ~/.openclaw/.learnings/
+# 确保目录可写
+```
+
+**常见问题**:
+- ❌ 自动写入不生效 → 检查 Hook 配置，重启网关
+- ❌ 并发写入冲突 → 确保 .write_lock 目录可创建
+- ❌ 搜索无结果 → experiences.md 为空，先手动写入几条
+
+---
+
+**最后更新**: 2026-04-24 v2.8.3
 
 ### corrections.md
 

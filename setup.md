@@ -86,30 +86,52 @@ ls -la ~/.openclaw/skills/rocky-know-how/scripts/
 # 2. 检查 Hook 配置
 grep -A 10 "rocky-know-how" ~/.openclaw/openclaw.json
 
-# 3. 测试搜索（应无错误）
+# 3. 测试搜索（应返回空但无错误）
 bash ~/.openclaw/skills/rocky-know-how/scripts/search.sh --all
 
-# 4. 查看统计
+# 4. 测试自动写入（写入测试经验）
+bash ~/.openclaw/skills/rocky-know-how/scripts/record.sh \
+  "安装测试" \
+  "执行 record.sh 写入测试数据" \
+  "直接调用 record.sh 即可" \
+  "完成后用 clean.sh 清理" \
+  "test,install" \
+  "global"
+
+# 5. 验证写入成功（应看到测试条目）
+bash ~/.openclaw/skills/rocky-know-how/scripts/search.sh --tag test
+
+# 6. 查看统计
 bash ~/.openclaw/skills/rocky-know-how/scripts/stats.sh
 
-# 5. 检查数据文件
+# 7. 检查数据文件
 ls -la ~/.openclaw/.learnings/
+cat ~/.openclaw/.learnings/memory.md | tail -5
 ```
 
-预期输出（stats.sh）：
+**预期输出**:
+- search.sh 无错误（或显示测试条目）
+- record.sh 输出 "✅ 记录成功"
+- memory.md 末尾出现新条目摘要
+- stats.sh 显示 experiences.md 条目数+1
+
+**清理测试数据**:
+```bash
+# 删除测试条目（ID 包含 test 或 auto 标签）
+bash ~/.openclaw/skills/rocky-know-how/scripts/clean.sh --tag test --dry-run
+bash ~/.openclaw/skills/rocky-know-how/scripts/clean.sh --tag test
 ```
-📊 rocky-know-how 经验诀窍统计
 
-🔥 HOT (始终加载):
-  memory.md: ≤100 行
+**自动写入验证**:
+```bash
+# 查看 experiences.md 最新条目（应看到刚才写入的）
+tail -30 ~/.openclaw/.learnings/experiences.md
 
-❄️ COLD (归档):
-  archive/: 0 文件
+# 检查 memory.md 是否同步更新
+grep -A 2 "最近（最近7天）" ~/.openclaw/.learnings/memory.md
 
-经验诀窍 (v1 兼容):
-  experiences.md: X 条
-  domains/: N 个领域
-  projects/: M 个项目
+# 检查锁机制是否工作
+# （并发测试：同时开两个终端执行 record.sh）
 ```
 
 ---
