@@ -89,11 +89,14 @@ tail -100 memory.md > memory.md.tmp && mv memory.md.tmp memory.md
 ## 压缩流程 (v2.8.6)
 
 1. 分析 experiences.md（去重、合并）
-2. 生成 draft（before_compaction Hook）
+2. **生成草稿**（before_compaction Hook）
+   → 保存会话状态到 `.compaction-state.tmp`
 3. 压缩 experiences.md（去重 51 个条目）
 4. **截断 memory.md 至 ≤100 行**（Bug #4 修复）
 5. 更新 index.md
-6. 记录摘要（after_compaction Hook）
+6. **记录会话总结**（after_compaction Hook）→ `session-summaries.md`
+
+> **注意**: "生成草稿" 指保存会话上下文，不是最终经验。正式经验需通过 `record.sh` 手动写入。
 
 ---
 

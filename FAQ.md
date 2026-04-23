@@ -115,9 +115,57 @@ bash ~/.openclaw/skills/rocky-know-how/scripts/search.sh --semantic "测试"
 
 ## 🤖 自动写入
 
-### Q5: 任务成功后为什么没有自动写入？
 
-**A**: 自动写入需要满足以下条件：
+### Q4.5: 自动草稿和自动写入正式经验有什么区别？
+
+**A**: 核心区别：
+
+| 维度 | 自动草稿 | 自动写入正式经验 |
+|------|----------|------------------|
+| **触发** | before_reset Hook | ❌ 不再自动触发 |
+| **输出** | `drafts/draft-*.json` | ❌ 不直接输出 |
+| **状态** | `pending_review`（待审核） | N/A |
+| **可见性** | 仅 drafts/ 目录 | ❌ 不可搜索 |
+| **后续** | 需人工审核 + record.sh | 审核后才写入 |
+
+**历史版本**:
+- v2.8.5 及更早：任务成功 → 直接写入 `experiences.md`（自动）
+- v2.8.6+：任务成功 → 生成草稿 → 审核 → 手动写入（质量把关）
+
+**为什么改变？** 防止测试对话、临时问题污染经验库，确保入库经验质量。
+
+---
+
+### Q5: 任务成功后为什么没有自动写入正式经验？
+
+**A**: 因为从 v2.8.6 开始采用**两阶段机制**（草稿 → 审核 → 正式）：
+
+```
+任务成功 → Hook 生成草稿（drafts/，pending_review）
+    ↓
+    不直接写入 experiences.md
+    ↓
+需人工审核 → 执行 record.sh → 才写入正式经验
+```
+
+**检查草稿是否生成**:
+```bash
+ls -la ~/.openclaw/.learnings/drafts/
+# 应有 draft-*.json
+```
+
+**草稿未生成的可能原因**:
+| 原因 | 检查 | 解决 |
+|------|------|------|
+| Hook 未配置 | `grep rocky-know-how ~/.openclaw/openclaw.json` | 重启网关 |
+| 会话未结束 | 无 before_reset 事件 | 结束会话 |
+| 纯文档编辑 | `errors` 为空 | 正常（无需记录） |
+
+**手动测试草稿生成**: 安排真实任务，成功后检查 drafts/ 目录。
+
+---
+
+### Q6: 草稿如何转为正式经验？
 
 | 条件 | 说明 | 检查方法 |
 |------|------|----------|
@@ -140,9 +188,35 @@ tail -5 ~/.openclaw/.learnings/experiences.md
 
 ---
 
-### Q6: 自动写入会记录什么内容？
+### Q6: 草稿如何转为正式经验？
 
-**A**: 自动写入记录以下信息：
+**A**: 三步骤流程：
+
+#### 步骤1: 自动草稿（Hook 生成）
+任务成功 → before_reset → `drafts/draft-*.json`（状态: pending_review）
+
+#### 步骤2: 审核草稿
+**方式A: 批量审核（推荐）**
+```bash
+bash ~/.openclaw/skills/rocky-know-how/scripts/summarize-drafts.sh
+cat ~/.openclaw/.learnings/.summarize.log  # 查看建议
+# 复制并执行推荐的 record.sh 命令
+```
+**方式B: 手动处理**
+```bash
+cat ~/.openclaw/.learnings/drafts/draft-*.json
+bash ~/.openclaw/skills/rocky-know-how/scripts/record.sh \
+  "问题" "过程" "方案" "预防" "tags" "area"
+```
+
+#### 步骤3: 写入正式经验
+执行 `record.sh` → 去重 → 生成 ID → 写入 `experiences.md` → 同步 memory/domains
+
+---
+
+### Q7: 草稿包含什么内容？
+
+**A**: 草稿 JSON 结构：
 
 ```markdown
 ## [EXP-20260424-0121] 问题标题
@@ -166,7 +240,7 @@ tail -5 ~/.openclaw/.learnings/experiences.md
 
 ---
 
-### Q7: 写入的经验如何被搜索到？
+### Q8: 写入的经验如何被搜索到？
 
 **A**: 写入后立即生效（无需重建索引）：
 

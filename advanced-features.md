@@ -12,64 +12,173 @@
 
 ---
 
-## 🤖 自动写入机制
+## 🤖 自动草稿机制（两阶段设计）
 
-### 概述
+### 核心设计理念
 
-当 Agent 完成任务后，**无需用户手动执行** `record.sh`，rocky-know-how 会自动将解决方案写入经验库。
-
-### 触发链条
+rocky-know-how 的"自动写入"实际上是**两阶段流程**，确保经验质量：
 
 ```
-任务开始
-   ↓
-执行任务
-   ↓
-失败 1 次 → 继续尝试（不触发）
-   ↓
-失败 2 次 → 🔍 自动搜索（search.sh）
-   ↓
-找到方案 → 执行方案
-   ↓
-成功 → 📝 自动写入（record.sh）
-   ↓
-写入 experiences.md（持有 .write_lock）
-   ↓
-同步到 memory.md + domains/*.md
-   ↓
-同 Tag 使用 ≥3 次 → 🚀 自动晋升（promote.sh）→ TOOLS.md
+阶段1: 自动生成草稿（Hook 触发）
+阶段2: 人工/AI 审核草稿
+阶段3: 手动写入正式经验（record.sh）
 ```
 
-### 关键特性
+**为什么不是全自动？**
+- ❌ 防止测试对话、临时问答污染经验库
+- ❌ 避免低质量经验入库
+- ✅ 质量把关：只有值得复用的经验才保留
+- ✅ 可追溯：草稿保留原始上下文
 
-| 特性 | 说明 | 技术实现 |
-|------|------|----------|
-| **完全自动** | 无需用户指令 | Hook `before_reset` 触发 |
-| **并发安全** | 多 Agent 同时写入不冲突 | `.write_lock` 目录锁 |
-| **智能去重** | 防止重复记录 | 问题文本 + Tags 70% 重叠检测 |
-| **命名空间** | 自动选择存储位置 | 根据 Area/Project 推断 |
-| **同步写入** | 多层存储保持一致 | experiences.md + memory.md + domains/ |
+---
 
-### 实际场景
+### 阶段1: 自动生成草稿
 
-**场景：修复公众号图片 OCR 失败**
+#### 触发条件
+- **事件**: `before_reset` Hook（会话压缩/重置前）
+- **时机**: 任务成功完成后，会话结束前
+- **条件**: 检测到 `task` + `errors`（表示有问题解决过程）
+
+#### 执行流程
 
 ```
-1. 任务: 实现图片文字识别
-2. 第1次尝试: 直接调用百度OCR API → 失败（参数错误）
-3. 第2次尝试: 调整参数格式 → 失败（base64编码问题）
-   ↓ 自动搜索 "图片识别 base64"
-   找到经验: EXP-20260418-003 "微信公众号 OCR: 使用百度 API，需转 base64"
-4. 第3次尝试: 按方案执行 → 成功 ✅
-   ↓ 自动写入（如果是新问题）：
-   问题: 微信公众号图片 OCR 识别
-   过程: 百度 API 需 base64 编码，最初直接传文件路径失败
-   方案: 读取图片→base64编码→POST 到百度 OCR API→解析结果
-   预防: 封装 image_to_base64() 工具函数，所有图片上传统一处理
-   Tags: ocr,wechat,base64
-   Area: wx.newstt
-   同步: experiences.md + domains/wx.newstt.md + memory.md
-5. 后续: Tag "ocr" 累计使用 3 次后自动晋升到 TOOLS.md
+任务成功
+   ↓
+before_reset Hook 触发
+   ↓
+handler.js 分析 messages
+   ├── 提取 task（用户目标）
+   ├── 提取 tools（使用的工具）
+   ├── 提取 errors（遇到的错误）
+   ↓
+生成草稿文件: ~/.openclaw/.learnings/drafts/draft-{sessionKey}.json
+   ↓
+草稿状态: "pending_review"（待审核）
+```
+
+**handler.js 代码**（L147-165）：
+```javascript
+if (event.type === 'before_reset') {
+  const messages = event.messages || event.context?.messages || [];
+  saveCompactionState(sessionKey, env, messages);  // 生成草稿
+  return;
+}
+```
+
+**草稿示例**（draft-1776958084440-qad5k6.json）：
+```json
+{
+  "id": "draft-1776958084440-qad5k6",
+  "createdAt": "2026-04-23T15:28:04.440Z",
+  "sessionKey": "agent:test",
+  "problem": "Deploy nginx container",
+  "tried": "Error: bind failed: port already in use",
+  "solution": "解决方案待补充",
+  "prevention": "记录时间: 2026/4/23 23:28:04",
+  "tags": ["nginx", "error", "draft"],
+  "area": "infra",
+  "status": "pending_review",  // ← 待审核状态
+  "reviewedAt": "2026-04-23T15:31:13Z"
+}
+```
+
+#### 什么情况下不会生成草稿？
+
+| 情况 | 原因 | 结果 |
+|------|------|------|
+| 纯文档编辑 | `errors` 数组为空 | ❌ 跳过 |
+| 闲聊 | 无工具调用、无错误 | ❌ 跳过 |
+| 会话未结束 | 无 before_reset 事件 | ❌ 跳过 |
+| 子 agent 任务 | `sessionKey` 含 `:subagent:` | ❌ 跳过 |
+
+**今天的案例**: 文档版本统一工作 → 无 errors → 未生成草稿 ✅
+
+---
+
+### 阶段2: 草稿审核
+
+#### 审核方式
+
+**方式1: 批量 AI 辅助审核（推荐）**
+```bash
+# 扫描所有草稿，生成 AI 判断提示
+bash ~/.openclaw/skills/rocky-know-how/scripts/summarize-drafts.sh
+
+# 输出日志：~/.openclaw/.learnings/.summarize.log
+# 内容：每个草稿的「值得记录: 是/否」+ 原因 + record.sh 命令
+```
+
+**summarize-drafts.sh 工作原理**:
+1. 扫描 `drafts/` 所有 `draft-*.json`
+2. 提取 problem/solution/tags
+3. 生成 AI 提示（判断是否值得记录）
+4. 输出建议的 `record.sh` 命令到日志
+5. **不自动执行**（需人工确认）
+
+**方式2: 手动直接处理**
+```bash
+# 1. 查看草稿
+cat ~/.openclaw/.learnings/drafts/draft-*.json
+
+# 2. 根据内容手动执行 record.sh
+bash ~/.openclaw/skills/rocky-know-how/scripts/record.sh \
+  "问题" "踩坑过程" "正确方案" "预防" "tag1,tag2" "area"
+```
+
+---
+
+### 阶段3: 写入正式经验
+
+执行 `record.sh` 后：
+
+```
+1. 去重检查（70% 标签重叠拦截）
+2. 生成 ID (EXP-YYYYMMDD-HHMM)
+3. 持有 .write_lock 写入 experiences.md
+4. 同步 memory.md（HOT 层）
+5. 同步 domains/{area}.md（WARM 层）
+6. 释放锁
+```
+
+**写入后**: 经验可被 `search.sh` 搜索到，可被 Tag 晋升机制捕获。
+
+---
+
+### 两阶段设计优势
+
+| 问题 | 单阶段风险 | 两阶段解决方案 |
+|------|-----------|---------------|
+| 测试对话 | 污染经验库 | 草稿阶段过滤 |
+| 临时问题 | 噪音数据 | 审核时丢弃 |
+| 低质量经验 | 难以清理 | 人工把关 |
+| 误写入 | 无法撤销 | 未审核前无副作用 |
+| 批量处理 | 无法追溯 | drafts/ 保留原始上下文 |
+
+---
+
+### 常见误区
+
+#### ❌ 误区1: "自动写入 = 全自动"
+**误解**: Hook 触发后直接写入 experiences.md
+**真相**: Hook 只生成**草稿**，需审核后才写入
+
+#### ❌ 误区2: "草稿 = 正式经验"
+**误解**: drafts/ 目录下的 JSON 可直接搜索
+**真相**: 草稿状态 `pending_review`，`search.sh` 只搜 experiences.md
+
+#### ❌ 误区3: "summarize-drafts.sh 会自动写入"
+**误解**: 执行脚本就完成记录
+**真相**: 只输出建议命令，**仍需人工执行** `record.sh`
+
+#### ✅ 正确理解:
+```
+任务成功 → Hook 生成草稿（自动，无感）
+    ↓
+定期执行 summarize-drafts.sh（批量生成建议）
+    ↓
+人工审核 → 复制 record.sh 命令执行
+    ↓
+写入 experiences.md（正式入库）
 ```
 
 ---

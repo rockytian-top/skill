@@ -222,15 +222,138 @@ Agent: 立即记录纠正（手动触发）
 
 ## 自动 vs 手动写入对比
 
-| 特性 | 自动写入 | 手动写入 |
-|------|----------|----------|
-| 触发 | 任务成功（隐含） | 用户明确指令 |
-| 时机 | 任务完成后立即 | 随时 |
-| 去重 | ✅ 自动检查 | ✅ 自动检查 |
-| 锁保护 | ✅ .write_lock | ✅ .write_lock |
-| 命名空间 | 自动推断 | 用户指定 |
+| 特性 | 自动草稿 | 手动写入 |
+|------|---------|----------|
+| 触发 | 任务成功（Hook） | 用户明确指令 |
+| 时机 | 会话压缩时（before_reset） | 随时 |
+| 输出 | 草稿 (drafts/draft-*.json) | 正式经验 (experiences.md) |
+| 状态 | pending_review（待审核） | 立即生效 |
+| 去重 | ❌ 不检查（草稿阶段） | ✅ 自动检查 |
+| 锁保护 | ❌ 无（JSON独立文件） | ✅ .write_lock |
+| 命名空间 | 自动推断（area） | 用户指定 |
 | Hook 集成 | ✅ before_reset | ❌ 无 |
-| 适用场景 | 标准任务流程 | 特殊经验、教训
+| 适用场景 | 所有任务成功会话 | 特殊经验、手动补充 |
+
+---
+
+## 两阶段完整流程 (v2.8.6+)
+
+### 阶段1: 自动生成草稿
+
+```
+任务成功 → before_reset Hook 触发
+    ↓
+handler.js 提取会话信息
+    ├── task: 用户任务描述
+    ├── tools: 使用的工具列表
+    ├── errors: 遇到的错误（已解决）
+    ↓
+生成草稿文件: drafts/draft-{sessionKey}.json
+    ↓
+状态: "pending_review"（待审核）
+```
+
+**草稿示例**:
+```json
+{
+  "id": "draft-1776958084440-qad5k6",
+  "problem": "Deploy nginx container",
+  "tried": "Error: bind failed: port already in use",
+  "solution": "解决方案待补充",
+  "tags": ["nginx", "error"],
+  "area": "infra",
+  "status": "pending_review"
+}
+```
+
+### 阶段2: 草稿审核
+
+**方式1: 批量审核（推荐）**
+```bash
+# 查看草稿
+ls ~/.openclaw/.learnings/drafts/
+
+# 批量生成审核建议（输出 record.sh 命令）
+bash ~/.openclaw/skills/rocky-know-how/scripts/summarize-drafts.sh
+
+# 查看生成的命令
+cat ~/.openclaw/.learnings/.summarize.log
+
+# 执行推荐的 record.sh 命令
+bash ~/.openclaw/skills/rocky-know-how/scripts/record.sh "..."
+```
+
+**方式2: 手动直接写入**
+```bash
+# 直接读取草稿内容，手动执行 record.sh
+bash ~/.openclaw/skills/rocky-know-how/scripts/record.sh \
+  "问题" "踩坑过程" "正确方案" "预防" "tag1,tag2" "area"
+```
+
+### 阶段3: 写入正式经验
+
+`record.sh` 执行后：
+```
+1. 去重检查（70% 重叠拦截）
+2. 生成 ID (EXP-YYYYMMDD-HHMM)
+3. 持有 .write_lock 写入 experiences.md
+4. 同步 memory.md + domains/{area}.md
+5. 释放锁
+```
+
+---
+
+## 草稿生命周期
+
+| 状态 | 说明 | 操作 |
+|------|------|------|
+| `pending_review` | 待审核（刚生成） | 执行 summarize-drafts.sh 或手动处理 |
+| `reviewed` | 已审核 | 已执行 record.sh 写入正式经验 |
+| `archived` | 已归档 | 超过30天未处理，自动移至 archive/ |
+| `discarded` | 已丢弃 | 测试数据或无效经验
+
+**草稿保留时间**: 默认 7 天，超期自动清理
+
+## 草稿审核最佳实践
+
+1. **定期审核**（建议每天）
+   ```bash
+   # 通过 heartbeat 或 cron 每天执行
+   bash ~/.openclaw/skills/rocky-know-how/scripts/summarize-drafts.sh
+   ```
+
+2. **批量处理**（减少重复劳动）
+   - `summarize-drafts.sh` 一次处理所有草稿
+   - 输出多条 `record.sh` 命令，复制执行即可
+
+3. **质量把关**（避免垃圾数据）
+   - 检查问题描述是否清晰
+   - 方案是否可复用
+   - Tags 是否准确
+
+## 为什么需要审核？
+
+### 场景1: 测试对话（应过滤）
+```
+User: "测试"
+Agent: "好的，测试完成"
+→ 不应写入经验库
+```
+
+### 场景2: 临时问题（应过滤）
+```
+User: "今天天气怎么样？"
+→ 与工作无关，不应写入
+```
+
+### 场景3: 真实踩坑（应保留）
+```
+User: "Nginx 502 怎么修复？"
+Agent: 尝试多种方案 → 成功
+→ 应转为正式经验
+```
+
+**审核机制**: 通过 `drafts/` 中间层，人工或 AI 判断是否值得保留。
 
 ---
 

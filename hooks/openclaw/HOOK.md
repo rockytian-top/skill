@@ -12,10 +12,29 @@ Agent 启动时自动注入经验诀窍提醒到 bootstrap 上下文。
 
 | 事件 | 触发时机 | 功能 |
 |------|----------|------|
-| agent:bootstrap | AI 启动 | 注入经验提醒 + AI 判断草稿 |
-| before_compaction | 压缩前 | 分析会话，生成经验草稿 |
-| after_compaction | 压缩后 | 记录会话摘要 |
-| before_reset | 重置前 | 生成经验草稿 |
+| agent:bootstrap | AI 启动 | 注入经验提醒 + 检查草稿（仅提醒） |
+| before_compaction | 压缩前 | 保存会话状态到 .compaction-state.tmp |
+| after_compaction | 压缩后 | 生成会话总结（session-summaries.md） |
+| before_reset | 重置前 | **生成草稿**（drafts/draft-*.json，状态 pending_review） |
+
+## ⚠️ 重要：两阶段机制
+
+### 阶段1: 自动草稿（Hook 完成）
+- **before_reset** 触发 → 分析会话 → 生成草稿 JSON
+- 草稿位置: `~/.openclaw/.learnings/drafts/`
+- 草稿状态: `"pending_review"`（待审核）
+- **不自动写入** `experiences.md`
+
+### 阶段2: 审核草稿（人工/AI 辅助）
+- 执行 `summarize-drafts.sh` 批量生成建议
+- 查看 `~/.openclaw/.learnings/.summarize.log`
+- **人工执行** `record.sh` 命令写入正式经验
+
+### 为什么这样设计？
+- ✅ 防止测试对话、闲聊污染经验库
+- ✅ 质量把关：只有值得复用的经验才入库
+- ✅ 可追溯：草稿保留原始上下文
+- ✅ 安全：避免自动执行带来的风险
 
 ## 功能
 
@@ -40,15 +59,27 @@ Agent 启动时自动注入经验诀窍提醒到 bootstrap 上下文。
 - 支持更新旧经验、追加新方式
 - 超过3天草稿自动清理
 
-## 工作流程
+## 工作流程（v2.8.6+ 两阶段）
 
 ```
-1. agent:bootstrap → 注入经验提醒 + AI 判断草稿
-2. before_compaction → 分析会话，生成草稿
-3. after_compaction → 记录会话摘要
-4. before_reset → 生成经验草稿
-5. 下次 bootstrap → AI 判断草稿，写入/更新/跳过
+第1步: agent:bootstrap → 注入经验提醒（不自动判断草稿）
+第2步: before_compaction → 保存会话状态到 .compaction-state.tmp
+第3步: after_compaction → 记录会话总结到 session-summaries.md
+第4步: before_reset → 生成草稿 (drafts/draft-*.json)
+    ↓
+    草稿状态: pending_review（待审核）
+    ↓
+第5步: [人工] 执行 summarize-drafts.sh 批量审核
+    → 生成 record.sh 建议命令
+    ↓
+第6步: [人工] 执行 record.sh 写入正式经验
+    ↓ experiences.md ✅
 ```
+
+**关键更正**:
+- ❌ "草稿生成后 AI 自动判断写入" — 已废弃（v2.8.6+）
+- ✅ "草稿生成后需人工审核" — 当前机制
+- ⚠️ `summarize-drafts.sh` 只输出建议，不自动执行
 
 ## 启用方式
 

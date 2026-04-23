@@ -91,8 +91,32 @@ bash scripts/search.sh --all
 ```
 
 ### Record
+
+**⚠️ Two-Phase Process**: Auto-draft → Review → Formal write
+
+#### Phase 1: Auto-Draft (Hook)
+After task success, Hook automatically analyzes session and generates draft:
+```
+drafts/draft-{sessionKey}.json
+status: "pending_review"
+```
+No manual action needed.
+
+#### Phase 2: Review Drafts
 ```bash
-# Normal record
+# Batch review (recommended): AI-assisted judgment
+bash ~/.openclaw/skills/rocky-know-how/scripts/summarize-drafts.sh
+
+# Check suggestions
+cat ~/.openclaw/.learnings/.summarize.log
+# Output: DRAFT_ID: xxx | Worth recording: Yes/No | record.sh command
+
+# Copy and execute the recommended record.sh command
+```
+
+#### Phase 3: Formal Write
+```bash
+# Direct write (immediate effect)
 bash scripts/record.sh "Problem" "What went wrong" "Solution" "Prevention" "tag1,tag2" "area"
 
 # Dry-run (preview only)
@@ -113,21 +137,47 @@ bash scripts/archive.sh             # Archive
 bash scripts/archive.sh --auto
 ```
 
-## 🔄 Core Loop
+## 🔄 Complete Workflow (with Draft Review)
 
 ```
 Task received → Execute normally
     ↓
-Failed ≥2 times → Search experiences (search.sh)
-    ├── Found → Follow the solution
+Failed ≥2 times → 🔍 Search experiences (search.sh)
+    ├── Found → Follow solution
     └── Not found → Keep trying until success
     ↓
-Success → Record experience (record.sh)
+Success → 📝 Trigger before_reset Hook
     ↓
-Sync to memory/*.md → searchable via memory_search
+    Handler analyzes session → Extract task/tools/errors
     ↓
-Same Tag ≥3 times → Promote to TOOLS.md (promote.sh)
+    ✅ Problem detected → Generate draft (drafts/draft-*.json)
+    ❌ Casual chat/docs → Skip (no draft)
+    ↓
+Draft status: "pending_review"
+    ↓
+┌─────────────────────────────────────────┐
+│ Review Drafts (2 methods)               │
+│ 1. Batch review: summarize-drafts.sh   │
+│    → Outputs record.sh command suggestions │
+│    → Manual execution of record.sh     │
+│ 2. Direct: View draft → Manual record.sh │
+└─────────────────────────────────────────┘
+    ↓
+Write to experiences.md (formal) ✅
+    ↓
+Sync memory.md + domains/*.md
+    ↓
+Same Tag ≥3 times → 🚀 Promote to TOOLS.md (promote.sh)
 ```
+
+**Key Points**:
+- ✅ Auto-draft (silent) ≠ Auto-write formal
+- ✅ Draft requires review (prevent noise)
+- ✅ summarize-drafts.sh only suggests, doesn't auto-execute
+
+---
+
+## 🔄 Simplified Workflow (Emergency)
 
 ## 📂 Storage
 

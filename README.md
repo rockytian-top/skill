@@ -8,9 +8,12 @@
 
 ### 🎯 三大核心创新（其他技能没有）
 
-1. **🤖 自动写入机制** — 任务失败 2 次自动搜索，成功自动记录
+1. **🤖 自动草稿机制** — 任务成功自动生成草稿（drafts/），非直接写入
 2. **🔍 自动向量搜索** — 语义搜索 + 关键词搜索双引擎
 3. **⚡ 无嵌入模型自动降级** — 检测 LM Studio，不可用自动切关键词
+
+> **⚠️ 重要**: "自动草稿" ≠ "自动写入正式经验"。草稿需审核后手动执行 `record.sh` 才写入 experiences.md。
+> **设计原因**: 防止测试对话、临时问题污染经验库，保证质量。
 
 ---
 
@@ -154,8 +157,32 @@ bash scripts/search.sh --all
 ```
 
 ### 写入经验
+
+**⚠️ 两阶段机制**: 自动草稿 → 审核 → 正式写入
+
+#### 阶段1: 自动草稿（Hook 无感生成）
+任务成功后，Hook 自动分析会话，生成草稿文件：
+```
+drafts/draft-{sessionKey}.json
+状态: "pending_review"
+```
+无需手动操作，系统自动完成。
+
+#### 阶段2: 审核草稿
 ```bash
-# 正常写入
+# 批量审核（推荐）：AI 辅助判断
+bash ~/.openclaw/skills/rocky-know-how/scripts/summarize-drafts.sh
+
+# 查看审核建议
+cat ~/.openclaw/.learnings/.summarize.log
+# 输出：DRAFT_ID: xxx | 值得记录: 是/否 | record.sh 命令
+
+# 复制并执行推荐的 record.sh 命令
+```
+
+#### 阶段3: 正式写入
+```bash
+# 手动直接写入（立即生效）
 bash scripts/record.sh "问题" "踩坑过程" "正确方案" "预防措施" "tag1,tag2" "area"
 
 # 预览不写入
@@ -176,21 +203,47 @@ bash scripts/archive.sh             # 实际归档
 bash scripts/archive.sh --auto
 ```
 
-## 🔄 核心循环
+## 🔄 完整工作流（含草稿审核）
 
 ```
 接到任务 → 正常执行
     ↓
-失败≥2次 → 搜经验诀窍（search.sh）
+失败≥2次 → 🔍 搜经验诀窍（search.sh）
     ├── 有答案 → 按答案执行
     └── 没答案 → 继续尝试直到成功
     ↓
-成功后 → 写入经验诀窍（record.sh）
+成功后 → 📝 触发 before_reset Hook
     ↓
-同步到 memory/*.md → memory_search 可搜到
+    Handler 分析会话 → 提取 task/tools/errors
     ↓
-同Tag≥3次 → 晋升到 TOOLS.md（promote.sh）
+    ✅ 检测到问题解决 → 生成草稿 (drafts/draft-*.json)
+    ❌ 纯文档/闲聊 → 跳过（不生成草稿）
+    ↓
+草稿状态: "pending_review"（待审核）
+    ↓
+┌─────────────────────────────────────┐
+│ 审核草稿（2种方式）                │
+│ 1. 批量审核: summarize-drafts.sh  │
+│    → 输出 record.sh 建议命令        │
+│    → 人工执行 record.sh            │
+│ 2. 直接处理: 查看草稿 → 手动 record.sh │
+└─────────────────────────────────────┘
+    ↓
+写入 experiences.md（正式经验）✅
+    ↓
+同步 memory.md + domains/*.md
+    ↓
+同Tag≥3次 → 🚀 晋升到 TOOLS.md（promote.sh）
 ```
+
+**关键点**: 
+- ✅ 自动草稿（无感）≠ 自动写入正式经验
+- ✅ 草稿需审核（防止噪音）
+- ✅ summarize-drafts.sh 只生成建议，不自动执行
+
+---
+
+## 🔄 简化工作流（紧急情况）
 
 ## 📂 存储结构
 

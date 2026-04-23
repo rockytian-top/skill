@@ -100,10 +100,10 @@
 | **安装技能** | setup.md | "🚀 快速安装" |
 | **验证功能** | setup.md | "✅ 验证安装" |
 | **搜索经验** | operations.md | "🔍 搜索经验" 表格 |
-| **写入经验** | operations.md | "✍️ 写入经验" + 示例 |
-| **理解自动写入** | advanced-features.md | 第 1 章 "自动写入机制" |
-| **配置向量搜索** | advanced-features.md | 第 2 章 "自动向量搜索" → "配置向量搜索" |
-| **降级问题排查** | advanced-features.md | 第 3 章 "故障排查" 表格 |
+| **理解自动草稿** | README.md、advanced-features.md | "自动草稿机制"、"两阶段设计" |
+| **审核草稿** | operations.md | "草稿审核流程" |
+| **写入正式经验** | operations.md | "阶段3: 写入正式经验" |
+| **配置向量搜索** | advanced-features.md | 第 2 章 "配置向量搜索" |
 | **Hook 配置** | setup.md | "🔧 Hook 配置" |
 | **标签晋升** | learning.md | "Tag晋升铁律" |
 | **安全加固** | boundaries.md | "🚨 红旗警告" |

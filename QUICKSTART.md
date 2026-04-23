@@ -28,11 +28,79 @@ bash ~/.openclaw/skills/rocky-know-how/scripts/stats.sh
 
 ---
 
-## 📖 自动写入详解
+## 📖 自动草稿机制（两阶段）
 
-### 什么是自动写入？
+### 什么是自动草稿？
 
-Agent 在任务**成功完成后**，自动将解决方案记录到经验库，无需用户手动执行 `record.sh`。
+Agent 在任务**成功完成后**，Hook 自动分析会话并**生成草稿**（非正式经验），草稿需审核后才能写入正式库。
+
+**完整流程**: 自动草稿 → 审核 → 手动写入正式经验
+
+### 触发条件
+
+| 条件 | 动作 | 输出 |
+|------|------|------|
+| 任务成功 + before_reset Hook | 📝 生成草稿 | `drafts/draft-*.json` |
+| 草稿状态 `pending_review` | ⏳ 等待审核 | 需人工处理 |
+| 审核通过 + 执行 record.sh | ✅ 写入正式经验 | `experiences.md` |
+| Tag ≥3 次 | 🚀 自动晋升 | `TOOLS.md` |
+
+### 实际例子
+
+**场景**: 修复 Nginx 502 错误
+
+```
+第1次尝试: 改配置 → 失败 ❌
+第2次尝试: 重启 php-fpm → 失败 ❌
+    ↓ 自动搜索 "502 nginx"
+找到经验: EXP-20260420-001
+    ↓ 按方案执行
+第3次尝试: 重启 + 调参数 → 成功 ✅
+    ↓ 触发 before_reset Hook
+    Handler 提取: task/tools/errors
+    ↓ 生成草稿: drafts/draft-xxx.json
+    状态: pending_review（待审核）
+    ↓
+[人工审核] → 执行 record.sh
+    ↓ 写入 experiences.md（正式）✅
+    ↓ 同 Tag "nginx" 使用 3 次后
+晋升 TOOLS.md
+```
+
+### 审核草稿
+
+```bash
+# 批量审核（AI 辅助）
+bash ~/.openclaw/skills/rocky-know-how/scripts/summarize-drafts.sh
+# 查看建议
+cat ~/.openclaw/.learnings/.summarize.log
+# 复制并执行推荐的 record.sh 命令
+
+# 或直接查看草稿内容
+cat ~/.openclaw/.learnings/drafts/draft-*.json
+# 手动执行 record.sh
+```
+
+### 为什么需要审核？
+
+防止以下情况污染经验库：
+- ❌ 测试对话（"测试"、"123"）
+- ❌ 闲聊（"今天天气"）
+- ❌ 临时问题（"帮我重启服务器"）
+- ❌ 低质量经验（方案不明确）
+
+**两阶段设计**: 草稿作为中间层，保证入库经验质量。
+
+---
+
+## 📖 自动写入详解（历史版本）
+
+> **注意**: v2.8.6+ 采用两阶段（草稿→审核→正式），不再直接自动写入。
+> 以下为早期版本的直接自动写入说明（已废弃）。
+
+### 什么是自动写入？（v2.8.5 及更早）
+
+Agent 在任务成功完成后，**直接写入** `experiences.md`，无需用户手动执行。
 
 ### 触发条件
 
