@@ -225,6 +225,46 @@ function extractContextFromMessages(messages) {
 }
 
 /**
+ * 自动搜索相关经验并返回结果
+ */
+function autoSearch(scriptsDir, messages) {
+  try {
+    const searchScript = join(scriptsDir, 'search.sh');
+    if (!existsSync(searchScript)) return null;
+    
+    // 从 messages 提取关键词
+    const keywords = [];
+    for (const msg of messages) {
+      if (msg.role === 'user' && msg.content) {
+        const content = typeof msg.content === 'string' ? msg.content : '';
+        // 提取前10个词作为关键词
+        const words = content.slice(0, 200).split(/\s+/).slice(0, 5);
+        keywords.push(...words.filter(w => w.length > 3));
+      }
+    }
+    
+    if (keywords.length === 0) return null;
+    
+    // 去重，取前3个关键词
+    const unique = [...new Set(keywords)].slice(0, 3);
+    const query = unique.join(' ');
+    
+    // 执行搜索
+    const result = execSync(`bash "${searchScript}" ${query} 2>/dev/null | head -50`, {
+      encoding: 'utf8',
+      timeout: 10000
+    });
+    
+    if (result && result.trim()) {
+      return `\n\n## 🔍 自动搜索相关经验\n${result}\n`;
+    }
+  } catch (e) {
+    // 忽略搜索错误
+  }
+  return null;
+}
+
+/**
  * 保存 compaction 前状态到临时文件
  */
 function saveCompactionState(sessionKey, env, messages) {
@@ -313,11 +353,25 @@ const handler = async (event) => {
   }
   
   // ============================================================
-  // 2. before_compaction - 压缩前保存任务状态
+  // 2. before_compaction - 压缩前保存任务状态 + 自动搜索
   // ============================================================
   if (event.type === 'before_compaction') {
     const messages = event.messages || event.context?.messages || [];
+    
+    // 保存状态
     saveCompactionState(sessionKey, env, messages);
+    
+    // 自动搜索相关经验并注入上下文
+    const scriptsDir = findScriptsDir(sessionKey, env);
+    const searchResult = autoSearch(scriptsDir, messages);
+    if (searchResult && event.context) {
+      // 注入到 systemPrompt 或 messages
+      if (event.context.systemPrompt !== undefined) {
+        event.context.systemPrompt += searchResult;
+      } else if (Array.isArray(event.context.messages)) {
+        event.context.messages.push({ role: 'system', content: searchResult });
+      }
+    }
     return;
   }
   

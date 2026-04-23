@@ -1,7 +1,7 @@
 #!/bin/bash
 # ============================================================
-# 全自动草稿审核脚本 - v1.0
-# 草稿 → AI判断 → 同类检测 → 自动新增/追加 → 写入experiences.md
+# 全自动草稿审核脚本 - v2.0
+# 草稿 → AI判断 → 同类检测 → 自动新增/追加 → 写入experiences.md → 自动晋升
 # ============================================================
 
 set -e
@@ -107,6 +107,10 @@ main() {
     log "=========================================="
     log "AUTO REVIEW COMPLETE"
     log "=========================================="
+    
+    # 自动晋升检查（Tag使用≥3次 → 写入TOOLS.md）
+    log "Running auto-promote..."
+    bash "$SCRIPT_DIR/promote.sh" 2>&1 | tee -a "$LOG_FILE" || true
     
     # 显示统计
     bash "$SCRIPT_DIR/stats.sh" 2>/dev/null | tail -5
