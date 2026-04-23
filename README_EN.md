@@ -1,137 +1,114 @@
 # 📚 rocky-know-how
 
-> OpenClaw Learning Knowledge Skill v2.8.12 — Search on failure, write after solving, learnings shared across agents
+> OpenClaw Learning Knowledge Skill v2.8.14  
+> Core: **Search on failure, write after solving, learnings shared across agents**
 
-[English](./README_EN.md) | [完整使用指南](./SKILL-GUIDE.md)
-
----
-
-## ✨ Features
-
-### 🎯 Three Core Innovations
-
-1. **🤖 Fully Automatic Draft Review** — Hook generates drafts → `auto-review.sh` reviews and writes in one click
-2. **🔍 Dual Search Engines** — Semantic search + keyword search, vector enabled when LM Studio available
-3. **⚡ Auto Fallback** — Automatically switches to keyword search when LM Studio unavailable
+[English](./README_EN.md) | [Complete Guide](./SKILL-GUIDE.md) | [Architecture](./ARCHITECTURE.md)
 
 ---
 
-### Basic Features
+## 🎯 Core Innovations
 
-- 🔍 **Smart Search** — Multi-keyword AND matching + relevance scoring + domain/project filtering
-- 🤖 **Fully Automatic Review** — `auto-review.sh` draft → review → write → archive all automatic
-- 🏷️ **Tag/Domain Filtering** — `--tag` `--area` `--project` precise filtering
-- 🔄 **Auto Deduplication** — Problem text + Tags combination deduplication (70% threshold)
-- 📝 **Native Memory Sync** — Writes to memory.md, searchable via memory_search
-- 🌙 **Dreaming Integration** — Mark comments for Dreaming phase analysis
-- 📊 **Tag Promotion Rule** — Same Tag ≥3 times in 7 days auto-promotes to TOOLS.md
-- 📥 **History Import** — Batch extract lessons from memory
-- 🗄️ **Auto Archive** — Auto archive after 30+ days
-- 🌐 **Cross Agent Sharing** — Global storage, all agents share same experience base
-- 🔒 **Security Hardening** — Path traversal detection, regex escaping, input validation
-- ⚡ **Concurrency Safety** — Directory lock protection, multi-process safe writes
+### 1. 🤖 Hook Fully Automatic Draft Review (v2.8.14 NEW)
 
----
-
-## 🔄 Fully Automatic Workflow
-
+**before_reset Hook automatically triggers**:
 ```
-Task Fails → search.sh search experience
+Task fails → Try solutions → Success
     ↓
-Found Answer → Execute → Success
+before_reset Hook triggers
     ↓
-before_reset Hook → Auto generate draft (drafts/)
-    ↓
-auto-review.sh → Scan drafts → Search similar → Auto create/append
-    ↓
-Write to experiences.md → Archive draft → Done ✅
+1. Auto generate draft (drafts/draft-*.json)
+2. Auto call auto-review.sh
+3. Auto review → Search similar → Create/Append
+4. Auto write to experiences.md ✅
+5. Auto archive draft ✅
 ```
 
-**No manual intervention required**, fully automatic from draft to formal experience.
+**Zero manual intervention, fully end-to-end automated!**
 
----
+### 2. 🔍 Dual Search Engines
 
-## 📦 Script List
+- LM Studio available → Vector semantic search
+- LM Studio unavailable → Keyword search (auto-fallback)
+- Results ranked by relevance
 
-| Script | Description | Priority |
-|--------|-------------|----------|
-| **auto-review.sh** | 🆕 **Fully Automatic Draft Review** (Recommended) | ⭐⭐⭐ |
-| search.sh | Search experiences | ⭐⭐⭐ |
-| record.sh | Write new experience | ⭐⭐⭐ |
-| summarize-drafts.sh | Scan drafts generate suggestions (semi-auto) | ⭐⭐ |
-| append-record.sh | Append to existing experience | ⭐⭐ |
-| update-record.sh | Update existing experience | ⭐⭐ |
-| promote.sh | Tag promotion check | ⭐⭐ |
-| demote.sh | Demote unused experiences | ⭐ |
-| compact.sh | Compress deduplication | ⭐⭐ |
-| archive.sh | Archive old data | ⭐ |
-| stats.sh | Statistics panel | ⭐ |
-| clean.sh | Clean garbage | ⭐ |
-| import.sh | Import history lessons | ⭐ |
+### 3. 📊 Tag Promotion Rule
+
+- Same Tag used ≥3 times in 7 days
+- Auto-promote to TOOLS.md
+- Fast access to common issues
 
 ---
 
 ## 🚀 Quick Start
 
-### 1. Install
-
+### Install (One-command)
 ```bash
-# ClawHub (Recommended)
 openclaw skills install rocky-know-how
-
-# Or manual
-git clone https://gitee.com/rocky_tian/skill.git
-cd skill/rocky-know-how
-bash scripts/install.sh
 ```
 
-### 2. Search Experience
-
+### Search Experience
 ```bash
 bash ~/.openclaw/skills/rocky-know-how/scripts/search.sh nginx 502
 ```
 
-### 3. Fully Automatic Draft Review
-
-```bash
-bash ~/.openclaw/skills/rocky-know-how/scripts/auto-review.sh
-```
-
-### 4. Manual Write Experience
-
+### Write Experience (Manual)
 ```bash
 bash ~/.openclaw/skills/rocky-know-how/scripts/record.sh \
-  "Nginx 502 error" \
-  "Restart nginx failed, php-fpm process disappeared" \
-  "Restart php-fpm + adjust max_children" \
-  "Monitor php-fpm process count regularly" \
-  "nginx,502,php-fpm" \
-  "infra"
+  "Problem" "Error encountered" "Solution" "Prevention" "tag1,tag2" "area"
+```
+
+### Fully Automatic Draft Review (Hook Auto-triggered)
+```bash
+# No manual run needed! before_reset Hook triggers automatically
+# auto-review.sh: scan → review → write → archive
 ```
 
 ---
 
-## 🔧 Hook Configuration
+## 📦 Script List
 
-install.sh auto-configures, no manual operation needed.
-
-4 Events:
-- `agent:bootstrap` — Inject experience reminder on startup
-- `before_compaction` — Save session state
-- `after_compaction` — Record session summary
-- `before_reset` — **Generate draft** (Core)
+| Script | Description | Trigger |
+|--------|-------------|---------|
+| **auto-review.sh** | 🤖 **Fully Automatic Draft Review** (Recommended) | Hook auto |
+| search.sh | Search experiences | Manual |
+| record.sh | Write new experience | Manual |
+| summarize-drafts.sh | Scan drafts, generate suggestions | Manual |
+| append-record.sh | Append to existing experience | Called by auto-review.sh |
+| update-record.sh | Update existing experience | Manual |
+| promote.sh | Tag promotion check | Cron/Manual |
+| compact.sh | Compress & deduplicate | Cron/Manual |
+| archive.sh | Archive old data | Cron/Manual |
 
 ---
 
-## 🔒 Security
+## 🔄 Complete Workflow
 
-| Measure | Description |
+```
+┌─────────────────────────────────────────────────────────────┐
+│ Stage 1: Auto Draft Generation (Hook)                       │
+├─────────────────────────────────────────────────────────────┤
+│ before_reset triggers → generateDraft() → drafts/draft-*.json│
+└─────────────────────────────────────────────────────────────┘
+                              ↓
+┌─────────────────────────────────────────────────────────────┐
+│ Stage 2: Auto Review & Write (Hook calls auto-review.sh)   │
+├─────────────────────────────────────────────────────────────┤
+│ Scan drafts → Extract keywords → Search similar → Create/Append→Archive │
+└─────────────────────────────────────────────────────────────┘
+```
+
+---
+
+## 🔒 Security & Performance
+
+| Feature | Description |
 |---------|-------------|
-| ✅ Concurrent Write Lock | `.write_lock` directory lock |
-| ✅ Strict Input Validation | ID format, path, length checks |
-| ✅ Regex Escaping | Prevent injection attacks |
-| ✅ Path Traversal Detection | `../` and `\` comprehensive blocking |
-| ✅ Open Source | MIT License |
+| Concurrent Safety | `.write_lock` directory lock |
+| Input Validation | ID format, path, length checks |
+| Regex Escaping | Prevent injection |
+| Path Traversal Detection | `../` and `\` blocked |
+| Auto Fallback | Switch to keyword if LM Studio unavailable |
 
 ---
 
@@ -143,40 +120,34 @@ install.sh auto-configures, no manual operation needed.
 ├── memory.md              ← HOT layer (≤100 lines)
 ├── domains/               ← WARM layer (domain isolated)
 │   ├── infra.md
-│   ├── wx.newstt.md
 │   ├── code.md
 │   └── global.md
-├── drafts/                ← Drafts (pending review)
+├── drafts/                ← Drafts (Hook auto-generated)
 │   └── archive/           ← Processed draft archive
-└── vectors/               ← Vector index (LM Studio)
+└── vectors/               ← Vector index
 ```
 
 ---
 
 ## 📖 Version History
 
-| Version | Date | Changes |
-|---------|------|---------|
-| **2.8.12** | 2026-04-24 | ✅ Full auto workflow test verified; SKILL-GUIDE.md (20KB) complete guide |
-| **2.8.11** | 2026-04-24 | SKILL-GUIDE.md complete skill guide (12 chapters) |
-| **2.8.10** | 2026-04-24 | 🆕 auto-review.sh fully automatic draft review script |
-| **2.8.9** | 2026-04-24 | ARCHITECTURE.md complete architecture design (19.8KB) |
-| **2.8.8** | 2026-04-24 | Two-phase mechanism documentation fix |
-| 2.8.3 | 2026-04-24 | 🔒 Security: H1/H2/M1 vulnerability fixes |
-| 2.8.2 | 2026-04-24 | 🔐 Concurrent lock, Hook path dynamic |
-| 2.7.1 | 2026-04-21 | Support OpenClaw 2026.4.21 |
+| Version | Date | Highlights |
+|---------|------|------------|
+| **v2.8.14** | 2026-04-24 | 🤖 **Hook Fully Automatic Integration** |
+| v2.8.13 | 2026-04-24 | Root docs update |
+| v2.8.12 | 2026-04-24 | Full auto test verified |
+| v2.8.11 | 2026-04-24 | SKILL-GUIDE.md complete guide |
+| v2.8.10 | 2026-04-24 | auto-review.sh auto review |
+| v2.8.9 | 2026-04-24 | ARCHITECTURE.md architecture design |
 
 ---
 
 ## 🔗 Links
 
 - [ClawHub](https://clawhub.ai/skills/rocky-know-how)
-- [GitHub](https://github.com/rockytian-top/openclaw-rocky-skills)
-- [Gitee](https://gitee.com/rocky_tian/skill)
-- [Complete Guide](./SKILL-GUIDE.md)
-- [Architecture](./ARCHITECTURE.md)
+- [GitHub](https://github.com/rockytian-top/skill.git)
+- [Gitee](https://gitee.com/rocky_tian/skill.git)
 
 ---
 
-**Maintainer**: 大颖 (fs-daying)  
-**Version**: v2.8.12
+**Maintainer**: 大颖 (fs-daying) | **Version**: v2.8.14
