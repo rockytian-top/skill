@@ -6,6 +6,15 @@
 
 ## ✨ Features
 
+### 🎯 Three Core Innovations (Unique to This Skill)
+
+1. **🤖 Auto-Record Mechanism** — Auto-search on 2nd failure, auto-write on success
+2. **🔍 Auto Vector Search** — Semantic + keyword dual-engine search
+3. **⚡ Embedding-less Auto Fallback** — Detects LM Studio, falls back to keyword search
+
+---
+
+### Basic Features
 - 🔍 **Smart Search** — Multi-keyword AND matching + relevance scoring + area/project filter
 - 🏷️ **Tag/Area Filter** — `--tag` `--area` `--project` precise filtering
 - 🔄 **Auto Dedup** — Question text + Tags combination dedup (threshold 70%)
@@ -17,7 +26,6 @@
 - 🌐 **Cross-Agent Sharing** — Global storage, all agents share the same data
 - 🔒 **Security Hardened** — Path traversal detection, regex escaping, input validation
 - ⚡ **Concurrent Safe** — Directory lock protects multi-process writes
-- 🤖 **Auto-Record Mechanism** — Auto-search on 2nd failure, auto-record on success (Hook integrated)
 
 ## 🔒 Security
 
