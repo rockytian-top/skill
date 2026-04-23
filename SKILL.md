@@ -1,15 +1,15 @@
 ---
 name: rocky-know-how
 slug: rocky-know-how
-version: 2.8.6
+version: 2.8.7
 homepage: https://clawhub.ai/skills/rocky-know-how
-description: "Learning knowledge skill v2.8.6 — Search learnings when failing 2+ times, write after solving. Layered storage (HOT/WARM/COLD), auto-promotion/demotion, 4-event hook integration. Core innovations: (1) Auto-record mechanism, (2) Vector search with LM Studio, (3) Auto-fallback when no embedding model. Fixes: H1 (regex injection), H2 (path traversal), concurrent write lock, format_all robustness, OPENCLAW_STATE_DIR support."
+description: "Learning knowledge skill v2.8.7 — Search learnings when failing 2+ times, write after solving. Layered storage (HOT/WARM/COLD), auto-promotion/demotion, 4-event hook integration. Core innovations: (1) Auto-record mechanism, (2) Vector search with LM Studio, (3) Auto-fallback when no embedding model. Fixes: H1 (regex injection), H2 (path traversal), concurrent write lock, format_all robustness, OPENCLAW_STATE_DIR support."
 changelog: |
+  v2.8.7: 文档统一 - 批量更新所有文档中的版本号引用为 2.8.6（13个文件，50+处更新）
   v2.8.6: 文档完善 - 新增 INDEX.md（文档导航地图）和 FAQ.md（17个常见问题解答），根目录说明文档完整
   v2.8.5: 文档完善 - 新增 advanced-features.md 详细说明三大核心创新（自动写入、向量搜索、自动降级），README 顶部突出展示
   v2.8.4: 文档完善 - 新增 QUICKSTART.md，详细说明自动写入流程、触发条件、使用场景、验证步骤
   v2.8.3: 安全修复 (H1/H2)，compact.sh memory.md压缩优化，memory.md 111→18行
-  v2.8.2: 一键安装脚本 (install.sh)，自动配置4个Hook事件，auto-restart网关
   v2.5.1: 退回简单版，不使用hook注入
 metadata: {"openclaw":{"emoji":"📚","requires":{"bins":[]},"os":["darwin","linux","win32"]}}
 ---
