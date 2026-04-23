@@ -19,6 +19,7 @@
 | 文档 | 内容 | 适合人群 |
 |------|------|----------|
 | **[ARCHITECTURE.md](./ARCHITECTURE.md)** | 🆕 完整架构设计（组件/数据流/Hook/存储/安全/扩展） | 开发者、架构师 |
+| **[SKILL-GUIDE.md](./SKILL-GUIDE.md)** | 🆕 **完整技能使用指南 (20KB)** - 12章节全覆盖 | 所有用户 |
 | **[README.md](./README.md)** | 功能特性列表、安全保障、脚本概览 | 所有用户 |
 | **[README_EN.md](./README_EN.md)** | English version | 英文用户 |
 | **[advanced-features.md](./advanced-features.md)** | 🆕 三大核心创新技术深挖 | 高级用户、开发者 |
