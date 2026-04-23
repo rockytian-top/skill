@@ -1,4 +1,4 @@
-# rocky-know-how 安装配置指南 (v2.8.3)
+# rocky-know-how 安装配置指南 (v2.8.6)
 
 ## 版本要求
 - OpenClaw: 2026.4.21+（支持 4 个 Hook 事件）
@@ -64,7 +64,7 @@ install.sh 已自动添加 Hook，无需手动操作。
 
 ### 关键参数说明
 
-| 参数 | 说明 | v2.8.3 新增 |
+| 参数 | 说明 | v2.8.6 新增 |
 |------|------|------------|
 | `handler` | Hook 处理器路径（支持 `~` 展开） | ✅ OPENCLAW_STATE_DIR 支持 |
 | `events` | 4 个事件列表 | ✅ 固定 |
@@ -136,7 +136,7 @@ grep -A 2 "最近（最近7天）" ~/.openclaw/.learnings/memory.md
 
 ---
 
-## 🌐 多 workspace 支持 (v2.8.3+)
+## 🌐 多 workspace 支持 (v2.8.6+)
 
 如果使用多个 workspace（如 `xiaoying/`、`xiaoduo/`），Handler 会自动检测 `OPENCLAW_STATE_DIR` 环境变量，监听对应 workspace 的 `.learnings/` 目录。
 
@@ -166,7 +166,7 @@ grep -A 2 "最近（最近7天）" ~/.openclaw/.learnings/memory.md
 
 ---
 
-## 🔒 安全特性 (v2.8.3)
+## 🔒 安全特性 (v2.8.6)
 
 | 特性 | 说明 | 影响版本 |
 |------|------|----------|

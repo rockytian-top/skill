@@ -1,4 +1,4 @@
-# 🚀 rocky-know-how 快速入门（v2.8.3）
+# 🚀 rocky-know-how 快速入门（v2.8.6）
 
 ## 30 秒上手
 
@@ -85,7 +85,7 @@ grep "rocky-know-how" ~/.openclaw/openclaw.json
 
 ---
 
-## 🔒 安全特性（v2.8.3）
+## 🔒 安全特性（v2.8.6）
 
 | 特性 | 说明 | 影响 |
 |------|------|------|

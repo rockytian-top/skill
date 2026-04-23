@@ -1,6 +1,6 @@
 # 📚 rocky-know-how
 
-> OpenClaw experience & know-how skill v2.8.3 — auto-search on repeated failures, auto-record on success, shared across all agents
+> OpenClaw experience & know-how skill v2.8.6 — auto-search on repeated failures, auto-record on success, shared across all agents
 
 [中文](./README.md) | English
 
@@ -45,16 +45,16 @@
 
 | Script | Description | Version |
 |--------|-------------|---------|
-| search.sh | Search experiences (relevance scoring, tag/area/project filter, preview) | v2.8.3 |
-| record.sh | Record experience (dedup, dry-run, Dreaming markers, **concurrent lock**) | v2.8.3 |
-| stats.sh | Statistics dashboard (entry count, Area/Tag distribution) | v2.8.3 |
-| promote.sh | Tag promotion check (≥3 times auto-writes TOOLS.md) | v2.8.3 |
-| import.sh | Batch import from memory/*.md (**path traversal fix**) | v2.8.3 |
-| archive.sh | Archive old entries (manual/auto mode) | v2.8.3 |
-| clean.sh | Cleanup tool (test entries/old index) | v2.8.3 |
-| update-record.sh | Update existing experience (**tag format aligned**) | v2.8.3 |
-| install.sh | Install script (**auto Hook config**) | v2.8.3 |
-| uninstall.sh | Uninstall script | v2.8.3 |
+| search.sh | Search experiences (relevance scoring, tag/area/project filter, preview) | v2.8.6 |
+| record.sh | Record experience (dedup, dry-run, Dreaming markers, **concurrent lock**) | v2.8.6 |
+| stats.sh | Statistics dashboard (entry count, Area/Tag distribution) | v2.8.6 |
+| promote.sh | Tag promotion check (≥3 times auto-writes TOOLS.md) | v2.8.6 |
+| import.sh | Batch import from memory/*.md (**path traversal fix**) | v2.8.6 |
+| archive.sh | Archive old entries (manual/auto mode) | v2.8.6 |
+| clean.sh | Cleanup tool (test entries/old index) | v2.8.6 |
+| update-record.sh | Update existing experience (**tag format aligned**) | v2.8.6 |
+| install.sh | Install script (**auto Hook config**) | v2.8.6 |
+| uninstall.sh | Uninstall script | v2.8.6 |
 
 ## 🚀 Installation
 

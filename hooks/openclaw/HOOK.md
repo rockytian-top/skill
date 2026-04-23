@@ -1,10 +1,10 @@
 ---
 name: rocky-know-how
-description: "经验诀窍技能 Hook v2.8.3 — 对齐 OpenClaw 2026.4.21，4事件Hook集成"
+description: "经验诀窍技能 Hook v2.8.6 — 对齐 OpenClaw 2026.4.21，4事件Hook集成"
 metadata: {"openclaw":{"emoji":"📚","events":["agent:bootstrap","before_compaction","after_compaction","before_reset"]}}
 ---
 
-# rocky-know-how Hook v2.8.3
+# rocky-know-how Hook v2.8.6
 
 Agent 启动时自动注入经验诀窍提醒到 bootstrap 上下文。
 

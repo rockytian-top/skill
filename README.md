@@ -1,6 +1,6 @@
 # 📚 rocky-know-how
 
-> OpenClaw Learning Knowledge Skill v2.8.3 — Search on failure, write after solving, learnings shared across agents
+> OpenClaw Learning Knowledge Skill v2.8.6 — Search on failure, write after solving, learnings shared across agents
 
 [English](./README_EN.md) | 中文
 
@@ -45,16 +45,16 @@
 
 | 脚本 | 说明 | 版本 |
 |------|------|------|
-| search.sh | 搜索经验（相关度排序、标签/领域/项目筛选、摘要模式） | v2.8.3 |
-| record.sh | 写入经验（去重、dry-run、Dreaming标记、**并发锁**） | v2.8.3 |
-| stats.sh | 统计面板（条目数、Area/Tag分布） | v2.8.3 |
-| promote.sh | Tag晋升检查（≥3次自动写TOOLS.md） | v2.8.3 |
-| import.sh | 从 memory/*.md 批量导入历史教训（**路径穿越修复**） | v2.8.3 |
-| archive.sh | 归档旧条目（手动/auto模式） | v2.8.3 |
-| clean.sh | 清理工具（测试条目/旧索引） | v2.8.3 |
-| update-record.sh | 更新已有经验（**标签格式对齐**） | v2.8.3 |
-| install.sh | 安装脚本（**Hook自动配置**） | v2.8.3 |
-| uninstall.sh | 卸载脚本 | v2.8.3 |
+| search.sh | 搜索经验（相关度排序、标签/领域/项目筛选、摘要模式） | v2.8.6 |
+| record.sh | 写入经验（去重、dry-run、Dreaming标记、**并发锁**） | v2.8.6 |
+| stats.sh | 统计面板（条目数、Area/Tag分布） | v2.8.6 |
+| promote.sh | Tag晋升检查（≥3次自动写TOOLS.md） | v2.8.6 |
+| import.sh | 从 memory/*.md 批量导入历史教训（**路径穿越修复**） | v2.8.6 |
+| archive.sh | 归档旧条目（手动/auto模式） | v2.8.6 |
+| clean.sh | 清理工具（测试条目/旧索引） | v2.8.6 |
+| update-record.sh | 更新已有经验（**标签格式对齐**） | v2.8.6 |
+| install.sh | 安装脚本（**Hook自动配置**） | v2.8.6 |
+| uninstall.sh | 卸载脚本 | v2.8.6 |
 
 ## 🔧 配置
 

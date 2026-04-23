@@ -1,4 +1,4 @@
-# 扩展规则 (v2.8.3)
+# 扩展规则 (v2.8.6)
 
 ## 规模阈值
 
@@ -6,7 +6,7 @@
 |------|--------|------|
 | 小 | <100 | 单一 memory.md（≤100 行），无需命名空间 |
 | 中 | 100-500 | 拆分到 domains/，基本索引 |
-| 大 | 500-2000 | 完整命名空间层级，积极压缩（**v2.8.3+ memory.md 自动截断**） |
+| 大 | 500-2000 | 完整命名空间层级，积极压缩（**v2.8.6+ memory.md 自动截断**） |
 | 超大 | >2000 | 按年归档，HOT 层只保留摘要 |
 
 ## 何时拆分
@@ -16,7 +16,7 @@
 - 主题有 10+ 个不同纠正
 - 用户明确分离上下文（"for work..."，"in this project..."）
 
-## 压缩规则 (v2.8.3)
+## 压缩规则 (v2.8.6)
 
 ### 合并相似纠正
 
@@ -41,7 +41,7 @@
 - Marcus emails: bullets ≤5, no jargon, BLUF, AM preferred
 ```
 
-### 带上下文归档 (v2.8.3)
+### 带上下文归档 (v2.8.6)
 
 当移动到 COLD 时，保留项目上下文：
 ```markdown
@@ -55,7 +55,7 @@
 Reason: Project completed, patterns unlikely to apply
 ```
 
-### memory.md 自动截断 (v2.8.3 Bug #4 修复)
+### memory.md 自动截断 (v2.8.6 Bug #4 修复)
 
 compact.sh 完成后，自动截断 memory.md 至最新 **100 行**：
 ```bash
@@ -86,7 +86,7 @@ tail -100 memory.md > memory.md.tmp && mv memory.md.tmp memory.md
 - **自动**: 心跳检查（如果 memory.md >100 行）
 - **会话结束**: before_reset Hook 触发
 
-## 压缩流程 (v2.8.3)
+## 压缩流程 (v2.8.6)
 
 1. 分析 experiences.md（去重、合并）
 2. 生成 draft（before_compaction Hook）
@@ -97,7 +97,7 @@ tail -100 memory.md > memory.md.tmp && mv memory.md.tmp memory.md
 
 ---
 
-**最后更新**: 2026-04-24 v2.8.3
+**最后更新**: 2026-04-24 v2.8.6
 ```markdown
 # 记忆索引
 
