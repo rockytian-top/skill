@@ -120,9 +120,25 @@ function resolveProviderInfo(event, ctx) {
 
     const apiKey = provider.apiKey || '';
 
-    // OAuth provider (无 apiKey): OpenClaw auth store 不对 hook 暴露 token
-    // 降级到关键词匹配，不尝试 LLM 调用
+    // OAuth provider (无 apiKey): 尝试从 auth-profiles.json 读取 token
     if (provider.authHeader && !apiKey) {
+      try {
+        const authProfilesPath = join(process.env.HOME || '~', '.openclaw', 'agents', 'main', 'agent', 'auth-profiles.json');
+        if (existsSync(authProfilesPath)) {
+          const authStore = JSON.parse(readFileSync(authProfilesPath, 'utf8'));
+          const profileId = `${providerId}:default`;
+          const profile = authStore?.profiles?.[profileId];
+          if (profile?.access) {
+            const token = profile.access;
+            console.log(`[rocky-know-how] resolveProviderInfo: ${providerId} using OAuth token from auth-profiles.json`);
+            const apiUrl = `${provider.baseUrl}${apiPath}`;
+            const model = modelId || provider.model || '';
+            return { provider, providerId, apiUrl, apiKey: token, model };
+          }
+        }
+      } catch (e) {
+        console.log(`[rocky-know-how] resolveProviderInfo: failed to read OAuth token: ${e.message}`);
+      }
       console.log(`[rocky-know-how] resolveProviderInfo: ${providerId} is OAuth (no apiKey), skipping LLM`);
       return null;
     }
