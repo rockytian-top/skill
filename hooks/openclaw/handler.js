@@ -191,6 +191,104 @@ ${content}`;
 }
 
 /**
+ * 用 LLM 判断草稿应该新增还是追加到已有经验
+ * @param {object} draft - 草稿对象
+ * @param {object[]} similarExperiences - 相似经验列表 [{id, problem, solution, area}, ...]
+ * @returns {object} { action: "create" | "append", targetId?: string, reason: string, optimizedSolution?: string, optimizedPrevention?: string }
+ */
+function decideCreateOrAppend(draft, similarExperiences) {
+  const openclawConfig = JSON.parse(readFileSync(join(process.env.HOME || '~', '.openclaw', 'openclaw.json'), 'utf8'));
+  const zaiProvider = openclawConfig?.models?.providers?.zai;
+
+  if (!zaiProvider?.baseUrl) {
+    // 无配置，降级到关键词判断
+    if (similarExperiences && similarExperiences.length > 0) {
+      return { action: 'append', targetId: similarExperiences[0].id, reason: '无LLM配置，降级到关键词判断' };
+    }
+    return { action: 'create', reason: '无LLM配置且无相似经验' };
+  }
+
+  const apiUrl = `${zaiProvider.baseUrl}/chat/completions`;
+  const model = zaiProvider.model || '';
+  const apiKey = zaiProvider.apiKey || '';
+
+  // 构造相似经验上下文
+  let similarCtx = '无相似经验';
+  if (similarExperiences && similarExperiences.length > 0) {
+    similarCtx = similarExperiences.slice(0, 3).map(exp =>
+      `【经验 ${exp.id}】\n问题: ${exp.problem}\n方案: ${exp.solution}\n标签: ${(exp.tags || []).join(', ')}`
+    ).join('\n\n');
+  }
+
+  const systemPrompt = `你是一个经验诀窍审核助手。判断草稿应该"新增经验"还是"追加到已有经验"。
+
+判断标准:
+- 草稿与已有经验问题本质相同/高度相似 → 追加到已有（补充新解决方案）
+- 草稿问题独特，无类似经验 → 新增经验
+- 已有经验解决方案已包含草稿方案 → 追加（补充另一种方式）
+- 已有经验标签/领域相同但问题不同 → 新增经验
+
+优化要求（追加时）:
+- 补充遗漏的关键步骤
+- 修正不准确的描述
+- 给出更完整的预防措施
+
+回复格式（仅输出JSON）:
+{
+  "action": "create"或"append",
+  "targetId": "EXP-XXX（append时必填）",
+  "reason": "判断理由（30字内）",
+  "optimizedSolution": "优化后的完整解决方案（append时必填）",
+  "optimizedPrevention": "优化后的预防措施（append时必填）"
+}`;
+
+  const userPrompt = `草稿内容:
+问题: ${draft.problem || '无'}
+踩坑过程: ${draft.tried || '无'}
+解决方案: ${draft.solution || '待补充'}
+标签: ${(draft.tags || []).join(', ')}
+
+相似经验:
+${similarCtx}`;
+
+  try {
+    const payload = {
+      messages: [
+        { role: 'system', content: systemPrompt },
+        { role: 'user', content: userPrompt }
+      ],
+      temperature: 0.1,
+      max_tokens: 600
+    };
+    if (model) payload.model = model;
+
+    const result = execSync(`curl -s -X POST "${apiUrl}" \
+      -H "Content-Type: application/json" \
+      -H "Authorization: Bearer ${apiKey}" \
+      -d '${JSON.stringify(payload).replace(/'/g, "'\\''")}' \
+      --max-time 30`, {
+      encoding: 'utf8',
+      timeout: 35000
+    });
+
+    const parsed = JSON.parse(result);
+    const assistantMsg = parsed.choices?.[0]?.message?.content || '';
+    const jsonMatch = assistantMsg.match(/\{[\s\S]*\}/);
+    if (jsonMatch) {
+      return JSON.parse(jsonMatch[0]);
+    }
+  } catch (e) {
+    console.log(`[rocky-know-how] decideCreateOrAppend LLM failed: ${e.message}`);
+  }
+
+  // LLM 失败，降级
+  if (similarExperiences && similarExperiences.length > 0) {
+    return { action: 'append', targetId: similarExperiences[0].id, reason: 'LLM失败，降级到关键词判断' };
+  }
+  return { action: 'create', reason: 'LLM失败且无相似经验' };
+}
+
+/**
  * 写入草稿文件的通用函数(用于 before_compaction 模型判断后)
  */
 function writeDraftWithJudge(learningsDir, sessionKey, problem, tried, tags) {
@@ -223,6 +321,57 @@ function writeDraftWithJudge(learningsDir, sessionKey, problem, tried, tags) {
   } catch (e) {
     console.log('[rocky-know-how] Failed to generate draft:', e.message);
     return null;
+  }
+}
+
+/**
+ * 搜索相似经验并读取完整内容
+ * @param {string} scriptsDir - scripts 目录
+ * @param {string} keywords - 搜索关键词
+ * @returns {object[]} 相似经验列表 [{id, problem, solution, tags, area}, ...]
+ */
+function searchSimilarExperiences(scriptsDir, keywords) {
+  try {
+    const searchScript = join(scriptsDir, 'search.sh');
+    if (!existsSync(searchScript)) return [];
+
+    const result = execSync(`bash "${searchScript}" ${keywords} 2>/dev/null | grep -oE 'EXP-[0-9]{8}-[0-9]{3}' | head -5`, {
+      encoding: 'utf8',
+      timeout: 10000
+    });
+
+    const ids = (result || '').trim().split('\n').filter(id => id.startsWith('EXP-'));
+    if (ids.length === 0) return [];
+
+    // 读取 experiences.md 提取相似经验内容
+    const experiencesFile = join(getLearningsDir(process.env), 'experiences.md');
+    if (!existsSync(experiencesFile)) return [];
+
+    const content = readFileSync(experiencesFile, 'utf8');
+    const experiences = [];
+
+    for (const id of ids) {
+      // 匹配经验条目: ## [EXP-YYYYMMDD-NNN]
+      const regex = new RegExp(`## \\\\[${id}\\\\]\\s*\n([\\s\\S]*?)(?=\\n## \\\\[EXP-|\\n## \\z)`, 'i');
+      const match = content.match(regex);
+      if (match) {
+        const block = match[1];
+        const problemMatch = block.match(/\*\*问题\*\*:\s*(.+)/i) || block.match(/### 问题\s*\n(.+)/i);
+        const solutionMatch = block.match(/\*\*正确方案\*\*:\s*(.+)/i) || block.match(/### 正确方案\s*\n([\s\S]+?)(?=###|$)/i);
+        const tagsMatch = block.match(/\*\*Tags\*\*:\s*(.+)/i);
+
+        experiences.push({
+          id,
+          problem: problemMatch ? problemMatch[1].trim() : '',
+          solution: solutionMatch ? (solutionMatch[1] || solutionMatch[0]).trim() : '',
+          tags: tagsMatch ? tagsMatch[1].split(',').map(t => t.trim()) : []
+        });
+      }
+    }
+    return experiences;
+  } catch (e) {
+    console.log(`[rocky-know-how] searchSimilarExperiences failed: ${e.message}`);
+    return [];
   }
 }
 
@@ -420,9 +569,48 @@ function processPendingItem(pendingFile, scriptsDir, learningsDir) {
       const draftId = writeDraftWithJudge(learningsDir, `pending:${pending.id}`, problem, (pending.errors || []).join('; ') || '无', judgeResult.tags || pending.tools || []);
 
       if (draftId) {
-        // 运行 auto-review 写入正式经验
-        console.log(`[rocky-know-how] Running auto-review for draft: ${draftId}`);
-        runAutoReview(scriptsDir, learningsDir);
+        // 读取草稿内容用于 LLM 判断
+        const draftFile = join(learningsDir, 'drafts', `${draftId}.json`);
+        let draftContent = { problem: problem, tried: (pending.errors || []).join('; ') || '无', solution: '待补充', tags: judgeResult.tags || pending.tools || [] };
+        try {
+          if (existsSync(draftFile)) {
+            draftContent = JSON.parse(readFileSync(draftFile, 'utf8'));
+          }
+        } catch (e) { /* use defaults */ }
+
+        // 搜索相似经验
+        const keywords = (judgeResult.tags || pending.tools || []).slice(0, 3).join(' ');
+        const similarExperiences = searchSimilarExperiences(scriptsDir, keywords);
+        console.log(`[rocky-know-how] Found ${similarExperiences.length} similar experiences`);
+
+        // LLM 判断: 新增还是追加
+        const decision = decideCreateOrAppend(draftContent, similarExperiences);
+        console.log(`[rocky-know-how] LLM decision: ${decision.action} ${decision.targetId || ''} - ${decision.reason}`);
+
+        if (decision.action === 'append' && decision.targetId) {
+          // 追加到已有经验
+          const solution = decision.optimizedSolution || draftContent.solution || '待补充';
+          try {
+            execSync(`bash "${join(scriptsDir, 'append-record.sh')}" "${decision.targetId}" "${solution.replace(/"/g, '\\"')}" "${(draftContent.tags || []).join(',')}"`, {
+              cwd: learningsDir, stdio: 'pipe', timeout: 15000
+            });
+            console.log(`[rocky-know-how] Appended to ${decision.targetId}`);
+          } catch (e) {
+            console.log(`[rocky-know-how] append-record.sh failed: ${e.message}`);
+          }
+        } else {
+          // 新增经验
+          const solution = decision.optimizedSolution || draftContent.solution || '待补充';
+          const prevention = decision.optimizedPrevention || 'No similar problems';
+          try {
+            execSync(`bash "${join(scriptsDir, 'record.sh')}" "${problem.replace(/"/g, '\\"')}" "${((pending.errors || []).join('; ') || '无').replace(/"/g, '\\"')}" "${solution.replace(/"/g, '\\"')}" "${prevention.replace(/"/g, '\\"')}" "${(draftContent.tags || []).join(',')}" "${draftContent.area || 'global'}"`, {
+              cwd: learningsDir, stdio: 'pipe', timeout: 15000
+            });
+            console.log(`[rocky-know-how] Created new experience`);
+          } catch (e) {
+            console.log(`[rocky-know-how] record.sh failed: ${e.message}`);
+          }
+        }
       }
       // 归档 pending 文件（无论是否生成草稿成功）
       const archiveDir = join(learningsDir, 'pending', 'archive');
