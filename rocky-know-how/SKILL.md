@@ -1,7 +1,7 @@
 ---
 name: rocky-know-how
 slug: rocky-know-how
-version: 3.0.0
+version: 3.0.1
 homepage: https://clawhub.ai/skills/rocky-know-how
 description: "Learning knowledge skill v3.0.0 — Full Auto-Closed-Loop experience system. 4-event Hook integration (bootstrap/compaction/reset), LLM dual-judgment, triple-layer storage (HOT/WARM/COLD), auto-promotion/demotion. Tested & verified: deepseek-v4, glm-5.1, minimax-m2.7. Safety: regex injection prevention, path traversal filtering, concurrent write lock."
 

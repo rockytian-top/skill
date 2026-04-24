@@ -1,10 +1,10 @@
 ---
 name: rocky-know-how
-description: "经验诀窍技能 Hook v3.0.0 — LLM双判断全自动闭环，支持全Provider"
+description: "经验诀窍技能 Hook v3.0.1 — LLM双判断全自动闭环，支持全Provider"
 metadata: {"openclaw":{"export":"handler","emoji":"📚","events":["agent:bootstrap","before_compaction","after_compaction","before_reset"]}}
 ---
 
-# rocky-know-how Hook v3.0.0
+# rocky-know-how Hook v3.0.1
 
 Agent 启动时自动注入经验诀窍提醒到 bootstrap 上下文。
 
@@ -17,7 +17,7 @@ Agent 启动时自动注入经验诀窍提醒到 bootstrap 上下文。
 | after_compaction | 压缩后 | LLM判断worth→生成草稿→LLM判断create/append→写入experiences→归档 |
 | before_reset | 重置前 | 保存pending（兜底） |
 
-## v3.0.0 全自动闭环流程
+## v3.0.1 全自动闭环流程
 
 ### 核心：两次 LLM 判断
 

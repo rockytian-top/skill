@@ -1,13 +1,13 @@
 /**
  * rocky-know-how Hook for OpenClaw
  *
- * v3.0.0 - 全 Provider LLM 判断支持
+ * v3.0.1 - 全 Provider LLM 判断支持
  * - before_compaction: 保存内容到 pending/ 待处理队列
  * - after_compaction: 直接调用 LLM 判断 + 处理
  * - 支持 zai/stepfun/minimax-portal (OAuth)
  * - 不触发新 agent,避免队列等待
  *
- * @version 3.0.0
+ * @version 3.0.1
  */
 
 const { existsSync, readFileSync, writeFileSync, appendFileSync, unlinkSync, mkdirSync } = require('fs');

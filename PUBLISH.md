@@ -1,6 +1,6 @@
 # rocky-know-how 发布清单
 
-**版本**: v3.0.0
+**版本**: v3.0.1
 **仓库**: https://gitee.com/rocky_tian/skill
 
 ---
@@ -51,15 +51,15 @@ rocky-know-how/
 
 | 文件 | 字段 | 要求 |
 |------|------|------|
-| SKILL.md | `version` | v3.0.0 |
-| _meta.json | `version` | v3.0.0 |
-| VERSION | 内容 | 3.0.0 |
-| handler.js | `@version` | 3.0.0 |
-| HOOK.md | description | v3.0.0 |
+| SKILL.md | `version` | v3.0.1 |
+| _meta.json | `version` | v3.0.1 |
+| VERSION | 内容 | 3.0.1 |
+| handler.js | `@version` | 3.0.1 |
+| HOOK.md | description | v3.0.1 |
 
 ---
 
-## 当前状态 (v3.0.0)
+## 当前状态 (v3.0.1)
 
 ### 文件清理 ✅
 - [x] 删除 search.sh.bak
@@ -68,17 +68,17 @@ rocky-know-how/
 - [x] 保留核心文件：SKILL.md, README, scripts, hooks/openclaw
 
 ### 代码同步 ✅
-- [x] handler.js: 1110行（最新v3.0.0）
-- [x] HOOK.md: v3.0.0
+- [x] handler.js: 1110行（最新v3.0.1）
+- [x] HOOK.md: v3.0.1
 - [x] 4个新脚本：append-record.sh, auto-review.sh, summarize-drafts.sh, update-record.sh
 - [x] 12个更新脚本：全部同步最新
 
 ### 文档更新 ✅
-- [x] SKILL.md: v3.0.0 中英文
-- [x] README.md: v3.0.0 中文
-- [x] README_EN.md: v3.0.0 英文
-- [x] _meta.json: version = 3.0.0
-- [x] VERSION: 3.0.0
+- [x] SKILL.md: v3.0.1 中英文
+- [x] README.md: v3.0.1 中文
+- [x] README_EN.md: v3.0.1 英文
+- [x] _meta.json: version = 3.0.1
+- [x] VERSION: 3.0.1
 
 ### 三大模型验证 ✅
 | 模型 | 正向测试 | 逆向测试 |
@@ -93,9 +93,9 @@ rocky-know-how/
 - [x] ClawHub: https://clawhub.ai/skills/rocky-know-how - 自动从GitHub读取
 
 ### Git Tag ✅
-- [x] git tag v3.0.0
-- [x] git push origin v3.0.0
-- [x] git push github v3.0.0
+- [x] git tag v3.0.1
+- [x] git push origin v3.0.1
+- [x] git push github v3.0.1
 
 ---
 
