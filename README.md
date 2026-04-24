@@ -1,6 +1,6 @@
 # 📚 rocky-know-how
 
-> OpenClaw 经验积累技能 v2.9.1  
+> OpenClaw 经验积累技能 v2.9.2
 > 核心理念：**搜索失败时，记录解决后经验，团队共享复用**
 
 [English](./README_EN.md) | [完整指南](./SKILL-GUIDE.md) | [架构设计](./ARCHITECTURE.md)
@@ -9,19 +9,20 @@
 
 ## 🎯 核心创新（重点突出）
 
-### 1. 🤖 Hook 全自动草稿审核（v2.9.1 新增）
+### 1. 🤖 LLM 双判断全自动写入（v2.9.2）
 
-**before_reset Hook 触发后自动完成**：
+**ctx 阈值触发压缩后自动完成**：
 ```
-任务失败 → 尝试解决 → 成功
+压缩触发 → before_compaction 提取原始上下文 → pending/
+压缩发生
+after_compaction → 处理 pending
     ↓
-before_reset Hook 触发
+LLM1 判断 worth — 是否值得写？
+    ↓ worth=true
+LLM2 判断 create/append — 新增还是追加？
     ↓
-1. 自动生成草稿 (drafts/draft-*.json)
-2. 自动调用 auto-review.sh
-3. 自动审核 → 搜索同类 → 新增/追加
-4. 自动写入 experiences.md ✅
-5. 自动归档草稿 ✅
+写入 experiences.md ✅
+归档 pending + draft ✅
 ```
 
 **无需人工干预，端到端全自动！**
@@ -58,10 +59,10 @@ bash ~/.openclaw/skills/rocky-know-how/scripts/record.sh \
   "问题描述" "踩坑过程" "正确方案" "预防措施" "tag1,tag2" "area"
 ```
 
-### 全自动草稿审核（Hook 自动调用）
+### 全自动写入（Hook 自动，无需手动）
 ```bash
-# 无需手动运行！before_reset Hook 自动触发
-# auto-review.sh 扫描草稿 → 审核 → 写入 → 归档
+# 无需手动运行！ctx 阈值触发压缩后自动完成
+# before_compaction → after_compaction → LLM双判断 → 写入 experiences
 ```
 
 ---
@@ -86,15 +87,24 @@ bash ~/.openclaw/skills/rocky-know-how/scripts/record.sh \
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
-│ 阶段1: 自动草稿生成（Hook）                                 │
+│ 阶段1: before_compaction — 提取原始上下文                  │
 ├─────────────────────────────────────────────────────────────┤
-│ before_reset 触发 → generateDraft() → drafts/draft-*.json │
+│ 提取 task + tools + errors → pending/*.json               │
+│ autoSearch() → 注入相关经验到上下文                         │
 └─────────────────────────────────────────────────────────────┘
                               ↓
 ┌─────────────────────────────────────────────────────────────┐
-│ 阶段2: 自动审核写入（Hook 调用 auto-review.sh）           │
+│ 阶段2: after_compaction — LLM双判断写入                   │
 ├─────────────────────────────────────────────────────────────┤
-│ 扫描草稿 → 提取关键词 → 搜索同类 → 新增/追加 → 归档      │
+│ processPendingItem()                                        │
+│   ├── LLM1 callLLMJudge() — worth=true/false?           │
+│   ├── 生成草稿 drafts/draft-*.json                         │
+│   ├── searchSimilarExperiences() — 读相似经验全文          │
+│   └── LLM2 decideCreateOrAppend() — create/append?       │
+│         ├── append → append-record.sh                    │
+│         └── create → record.sh                            │
+│   归档 draft → drafts/archive/                            │
+│   归档 pending → pending/archive/                         │
 └─────────────────────────────────────────────────────────────┘
 ```
 
@@ -108,7 +118,8 @@ bash ~/.openclaw/skills/rocky-know-how/scripts/record.sh \
 | 输入验证 | ID格式、路径、长度全检查 |
 | 正则转义 | 防注入攻击 |
 | 路径穿越检测 | `../` 和 `\` 全面拦截 |
-| 自动降级 | LM Studio 不可用自动切关键词 |
+| LLM 降级 | 无配置时退回到关键词判断 |
+| 自动归档 | draft + pending 处理后均归档 |
 
 ---
 
@@ -122,8 +133,10 @@ bash ~/.openclaw/skills/rocky-know-how/scripts/record.sh \
 │   ├── infra.md           ← 运维相关
 │   ├── code.md            ← 开发相关
 │   └── global.md          ← 通用
-├── drafts/                ← 草稿（Hook 自动生成）
-│   └── archive/           ← 已处理草稿归档
+├── drafts/                ← 草稿（处理后归档）
+│   └── archive/           ← 已归档草稿
+├── pending/                ← 待处理上下文（处理后归档）
+│   └── archive/            ← 已归档 pending
 └── vectors/               ← 向量索引
 ```
 
@@ -133,12 +146,12 @@ bash ~/.openclaw/skills/rocky-know-how/scripts/record.sh \
 
 | 版本 | 日期 | 亮点 |
 |------|------|------|
-| **v2.9.1** | 2026-04-24 | 🤖 **Hook 全自动集成**（核心创新） |
-| v2.9.1 | 2026-04-24 | 根目录文档更新 |
-| v2.9.1 | 2026-04-24 | 全自动测试验证通过 |
-| v2.9.1 | 2026-04-24 | SKILL-GUIDE.md 完整指南 |
-| v2.9.1 | 2026-04-24 | auto-review.sh 全自动审核 |
-| v2.9.1 | 2026-04-24 | ARCHITECTURE.md 架构设计 |
+| **v2.9.2** | 2026-04-24 | 🤖 LLM双判断create/append替代关键词匹配 |
+| v2.9.2 | 2026-04-24 | draft + pending 双归档避免目录膨胀 |
+| v2.9.2 | 2026-04-24 | block regex修复，解析经验正文 |
+| v2.9.1 | 2026-04-24 | 🎯 直接处理模式 + 移除硬编码模型 |
+| v2.9.1 | 2026-04-24 | after_compaction LLM双判断集成 |
+| v2.9.0 | 2026-04-24 | 压缩前生成草稿/压缩后写入正式经验 |
 
 ---
 
@@ -150,4 +163,4 @@ bash ~/.openclaw/skills/rocky-know-how/scripts/record.sh \
 
 ---
 
-**维护人**: 大颖 (fs-daying) | **版本**: v2.9.1
+**维护人**: 大颖 (fs-daying) | **版本**: v2.9.2

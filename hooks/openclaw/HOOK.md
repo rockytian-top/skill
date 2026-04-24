@@ -1,10 +1,10 @@
 ---
 name: rocky-know-how
-description: "经验诀窍技能 Hook v2.9.1 — 对齐 OpenClaw 2026.4.21，直接处理模式"
+description: "经验诀窍技能 Hook v2.9.2 — LLM双判断全自动闭环"
 metadata: {"openclaw":{"emoji":"📚","events":["agent:bootstrap","before_compaction","after_compaction","before_reset"]}}
 ---
 
-# rocky-know-how Hook v2.9.1
+# rocky-know-how Hook v2.9.2
 
 Agent 启动时自动注入经验诀窍提醒到 bootstrap 上下文。
 
@@ -12,49 +12,57 @@ Agent 启动时自动注入经验诀窍提醒到 bootstrap 上下文。
 
 | 事件 | 触发时机 | 功能 |
 |------|----------|------|
-| agent:bootstrap | AI 启动 | 注入经验提醒 + 检查草稿（仅提醒） |
-| before_compaction | 压缩前 | 保存会话状态到 .compaction-state.tmp |
-| after_compaction | 压缩后 | 生成会话总结（session-summaries.md） |
-| before_reset | 重置前 | **生成草稿**（drafts/draft-*.json，状态 pending_review） |
+| agent:bootstrap | AI 启动 | 注入经验提醒 |
+| before_compaction | 压缩前 | 提取task/tools/errors保存到pending/ + autoSearch注入相关经验 |
+| after_compaction | 压缩后 | LLM判断worth→生成草稿→LLM判断create/append→写入experiences→归档 |
+| before_reset | 重置前 | 保存pending（兜底） |
 
-## ⚠️ v2.9.1 重大更新：直接处理模式
+## v2.9.2 全自动闭环流程
 
-### 核心变化
-- ❌ 不再触发 `openclaw agent`（避免队列等待）
-- ✅ Hook 直接调用 LLM 判断 + 处理
-- ✅ 压缩完成后立即处理，无延迟
-
-### 工作流程（v2.9.1 直接处理）
+### 核心：两次 LLM 判断
 
 ```
-第1步: before_compaction → 保存内容到 pending/
-第2步: after_compaction → 直接调用 LLM 判断
-    ↓
-    worth=true → 生成草稿 + auto-review → 写入 experiences.md
-    worth=false → 归档到 pending/archive/
-第3步: before_reset → 保存内容到 pending/
+before_compaction → 提取原始上下文 → pending/*.json
+压缩发生
+after_compaction → 处理 pending
+    ├── LLM1 callLLMJudge() — worth=true/false?
+    │       输入: task + tools + errors
+    │
+    ├── worth=true → 生成草稿 drafts/draft-*.json
+    │       ├── searchSimilarExperiences() — 搜索相似经验读全文
+    │       └── LLM2 decideCreateOrAppend() — create 还是 append?
+    │               输入: 草稿全文 + 相似经验全文（最多3条）
+    │
+    ├── append → append-record.sh → experiences.md
+    ├── create → record.sh → experiences.md
+    │
+    ├── 归档 draft → drafts/archive/
+    └── 归档 pending → pending/archive/
 ```
+
+### LLM1 判断标准（是否值得写）
+- 有实际操作(工具调用) + 有问题或解决方案 → worth=true
+- 只有闲聊、无关内容 → worth=false
+
+### LLM2 判断标准（新增还是追加）
+- 问题本质相同/高度相似 → append（补充新解决方案）
+- 问题独特，无类似经验 → create（新增经验）
+- 追加时自动优化 solution 和 prevention
 
 ### 为什么这样设计？
-- ✅ 压缩完成立即处理，无等待
-- ✅ 不依赖 Agent 队列
-- ✅ 使用 GLM-4-Flash API（成本低）
-- ✅ 自动过滤低价值内容
+- ✅ 压缩前提取原始上下文，不丢失信息
+- ✅ 两次 LLM 判断，确保写入质量
+- ✅ 直接处理，不依赖 Agent 队列
+- ✅ 自动归档，drafts/ 不膨胀
 
 ## 功能
 
 - **自动注入** — agent:bootstrap 事件触发
 - **动态工作区** — 自动从 sessionKey 推导 workspace 路径
 - **跨 workspace** — 支持 shared 目录和全局安装
-- **数据检测** — 自动检测经验数据状态和 v2 分层存储
-- **子agent跳过** — 避免重复注入
-- **虚拟文件** — 不污染工作区文件
-- **直接LLM判断** — 不触发新 Agent
-
-## v2.9.1 更新
-
-- **直接处理模式** — after_compaction 直接处理 pending，不触发 agent
-- **解决队列等待** — 不依赖 Agent 队列
+- **LLM 双判断** — worth 判断 + create/append 判断
+- **自动归档** — draft 和 pending 处理后均归档
+- **降级策略** — 无 LLM 配置时退回到关键词判断
 
 ## 启用方式
 

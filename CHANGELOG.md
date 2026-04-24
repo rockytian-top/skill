@@ -1,5 +1,45 @@
 # CHANGELOG
 
+## [2.9.2] - 2026-04-24
+
+### 🤖 LLM双判断"新增 vs 追加"替代关键词匹配
+
+**核心变化**: `processPendingItem` 中新增完整 LLM 双判断流程
+
+- `searchSimilarExperiences()` — 搜索相似经验并读取 `experiences.md` 全文
+- `decideCreateOrAppend()` — LLM 语义判断 create/append
+  - 接收: 草稿全文 + 相似经验全文（最多3条）
+  - prompt 包含判断标准: 问题本质相同→append，问题独特→create
+  - append 时自动优化 solution 和 prevention
+- 降级策略: 无 LLM 配置时退回到关键词判断
+
+### 📦 draft + pending 双归档
+
+- `processPendingItem` worth=true 时，draft 处理完归档到 `drafts/archive/`
+- pending 处理完统一归档到 `pending/archive/`
+- 避免 drafts/ 目录无限膨胀
+
+### 🐛 fix: searchSimilarExperiences block regex
+
+- 修复: `## \[${id}\]\s*\n` 无法匹配含标题行的经验格式
+- 修复后: `## \[${id}\] [^\n]*\n\n([\s\S]*?)` 正确解析 `## [EXP-XXX] 标题\n\n内容`
+
+## [2.9.1] - 2026-04-24
+
+### 🎯 直接处理模式
+
+**核心变化**: `after_compaction` 不再触发 `openclaw agent`，直接调用 LLM 判断 + 处理
+
+- 移除硬编码 `glm-4-flash` 模型和 `bigmodel.cn` URL
+- `callLLMJudge()` 只从 `openclaw.json` 的 `zai` provider 读取配置
+- 无配置时返回 `{ worth: false }`，不降级调用
+
+### 架构调整
+
+- `before_compaction` → `savePendingLearnings()` 保存到 `pending/` 目录
+- `after_compaction` → `processPendingItem()` 直接处理 pending
+- `before_reset` → 兜底保存 pending
+
 ## [2.8.17] - 2026-04-24
 
 ### 🎯 压缩前生成草稿 / 压缩后写入正式经验
