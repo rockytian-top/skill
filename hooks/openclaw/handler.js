@@ -611,6 +611,14 @@ function processPendingItem(pendingFile, scriptsDir, learningsDir) {
             console.log(`[rocky-know-how] record.sh failed: ${e.message}`);
           }
         }
+        // 归档 draft 文件
+        if (draftId && existsSync(draftFile)) {
+          const draftArchiveDir = join(learningsDir, 'drafts', 'archive');
+          if (!existsSync(draftArchiveDir)) {
+            mkdirSync(draftArchiveDir, { recursive: true });
+          }
+          require('fs').renameSync(draftFile, join(draftArchiveDir, `${draftId}.json`));
+        }
       }
       // 归档 pending 文件（无论是否生成草稿成功）
       const archiveDir = join(learningsDir, 'pending', 'archive');
