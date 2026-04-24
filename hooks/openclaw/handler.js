@@ -461,7 +461,7 @@ function searchSimilarExperiences(scriptsDir, keywords) {
 
     for (const id of ids) {
       // 匹配经验条目: ## [EXP-YYYYMMDD-NNN] 标题\n\n内容
-      const regex = new RegExp(`## \\\\[${id}\\\\] [^\\\\n]*\\\\n\\\\n([\\\\s\\\\S]*?)(?=\\\\n## \\\\[EXP-|\\\\z)`, 'i');
+      const regex = new RegExp(`## \\[${id}\\] [^\\n]*\\n\\n([\\s\\S]*?)(?=\\n## \\[EXP-|\\z)`, 'i');
       const match = content.match(regex);
       if (match) {
         const block = match[1];
