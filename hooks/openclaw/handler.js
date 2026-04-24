@@ -803,6 +803,10 @@ function processPendingItem(pendingFile, scriptsDir, learningsDir, providerInfo)
             if (!existsSync(draftArchiveDir)) mkdirSync(draftArchiveDir, { recursive: true });
             require('fs').renameSync(draftFile, join(draftArchiveDir, `${draftId}.json`));
           }
+          // 归档 pending（keyword fallback 后也要归档）
+          const pendingArchiveDir = join(learningsDir, 'pending', 'archive');
+          if (!existsSync(pendingArchiveDir)) mkdirSync(pendingArchiveDir, { recursive: true });
+          require('fs').renameSync(pendingFile, join(pendingArchiveDir, `${pending.id}.json`));
           return;
         }
 
