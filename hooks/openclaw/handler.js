@@ -424,6 +424,13 @@ function processPendingItem(pendingFile, scriptsDir, learningsDir) {
         console.log(`[rocky-know-how] Running auto-review for draft: ${draftId}`);
         runAutoReview(scriptsDir, learningsDir);
       }
+      // 归档 pending 文件（无论是否生成草稿成功）
+      const archiveDir = join(learningsDir, 'pending', 'archive');
+      if (!existsSync(archiveDir)) {
+        mkdirSync(archiveDir, { recursive: true });
+      }
+      const archiveFile = join(archiveDir, `${pending.id}.json`);
+      require('fs').renameSync(pendingFile, archiveFile);
     } else {
       console.log(`[rocky-know-how] Pending ${pending.id} not worth saving, archiving`);
       // 归档到 pending/archive/
