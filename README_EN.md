@@ -1,119 +1,156 @@
-# rocky-know-how Learning Knowledge Skill
+# rocky-know-how v3.0.0
 
-**Version**: v2.7.1 | **OS**: macOS / Linux / Windows
+**Experience & Knowledge Auto-Learning System for OpenClaw Agents**
 
----
+> Enable AI Agents to learn from failures and automatically record successes, forming a complete experience closed-loop.
 
-## 📚 Overview
-
-rocky-know-how is a learning knowledge skill that helps AI Agents learn from failures and record successes.
-
-Core features:
-- 🔍 **Failed 2+ times** → Search the learnings database
-- ✍️ **Problem solved** → Record to learnings database
-- 📊 **Tag promotion** → Frequent learnings auto-upgrade
-- 🧹 **Auto-cleanup** → Test data periodic cleanup
+[![Version](https://img.shields.io/badge/version-3.0.0-blue)]()
+[![Models Tested](https://img.shields.io/badge/models_tested-deepseek_v4%20%7C%20glm_5.1%20%7C%20minimax_m2.7-green)]()
+[![Code Lines](https://img.shields.io/badge/code-4632_lines-orange)]()
 
 ---
 
-## 🚀 Quick Start
+## Overview
+
+rocky-know-how is a **fully automatic experience learning system** designed for OpenClaw Agents. Through 4-event Hook integration, it achieves a complete closed-loop: automatic experience extraction from conversations → LLM intelligent judgment → triple-layer storage management.
+
+**Key Features:**
+- 🔄 **Full Auto-Closed-Loop** — Auto-extract on compaction → LLM judge → write experience, zero manual intervention
+- 🧠 **LLM Dual-Judgment** — First judges if worth saving, then decides create vs append
+- 📦 **Triple-Layer Storage** — HOT (always loaded) / WARM (on-demand) / COLD (archive)
+- 🛡️ **5-Layer Security** — Regex injection prevention, path traversal filtering, concurrent write lock, dedup promotion, degradation fallback
+- 🔌 **Multi-Provider** — Supports deepseek / glm / minimax / stepfun (including OAuth)
+- ✅ **3-Model Verified** — deepseek-v4, glm-5.1, minimax-m2.7 all passed forward & reverse testing
+
+---
+
+## Quick Start
 
 ### Install
 
 ```bash
 git clone https://gitee.com/rocky_tian/skill.git
 cd skill/rocky-know-how
-./scripts/install.sh
+bash scripts/install.sh
 ```
 
 ### Core Commands
 
-| Command | Usage |
-|---------|-------|
-| `search.sh "keyword"` | Search learnings |
-| `record.sh "problem" "failures" "solution" "prevention" "tags"` | Record new lesson |
-| `stats.sh` | View stats dashboard |
-| `promote.sh` | Check tag promotion |
-| `clean.sh` | Cleanup test data |
+```bash
+# Search experiences
+bash scripts/search.sh "keyword"
+
+# Write experience
+bash scripts/record.sh "problem" "pitfall" "solution" "prevention" "tag1,tag2" "area"
+
+# View all
+bash scripts/search.sh --all
+
+# Statistics dashboard
+bash scripts/stats.sh
+```
 
 ---
 
-## 📁 Data Structure
+## Architecture
+
+### 4-Event Driven
+
+| Event | Trigger | Function |
+|-------|---------|----------|
+| `agent:bootstrap` | Agent startup | Inject experience reminder into systemPrompt |
+| `before_compaction` | Before compression | Extract task/tools/errors → save to pending/ |
+| `after_compaction` | After compression | **Core: LLM dual-judge → draft → write → archive** |
+| `before_reset` | Before session reset | Fallback save pending context |
+
+### Triple-Layer Storage
 
 ```
 ~/.openclaw/.learnings/
-├── experiences.md    # Main database (all learnings)
-├── memory.md         # HOT layer (frequent)
-├── domains/          # WARM layer (by domain)
-├── projects/         # WARM layer (by project)
-└── archive/          # COLD layer (archived)
+├── experiences.md    ← Main data (v1 compatible)
+├── memory.md         ← HOT layer (≤100 lines, always loaded)
+├── domains/          ← WARM layer (by area: infra, code, global...)
+├── projects/         ← WARM layer (by project)
+├── archive/          ← COLD layer (90+ days)
+├── drafts/           ← Auto-generated drafts (LLM judged)
+└── pending/          ← Session context (before processing)
+```
+
+### Full Auto-Closed-Loop Flow
+
+```
+Conversation → before_compaction
+  ├─ Extract task, tools, errors from messages
+  ├─ Save to pending/*.json
+  └─ Auto-search related experiences → inject context
+       ↓
+after_compaction (Core)
+  ├─ resolveProviderInfo() → get LLM provider
+  ├─ callLLMJudge() → worth writing? (worth=true?)
+  │   └─ Yes → generate draft
+  ├─ decideCreateOrAppend() → create new or append?
+  │   ├─ create → record.sh
+  │   └─ append → append-record.sh
+  ├─ runAutoReview() → background audit
+  ├─ Archive pending → pending/archive/
+  └─ Cleanup temp files
 ```
 
 ---
 
-## 🔄 v2.7.1 Updates
+## Safety & Security
 
-### Support OpenClaw 2026.4.21 New Hooks
-
-| Hook | Trigger | Function |
-|------|---------|----------|
-| `before_compaction` | Before session compaction | Save current task state |
-| `after_compaction` | After session compaction | Record session summary |
-| `before_reset` | Before session reset | Save important info |
-
-### Fixes
-
-- **Deduplication logic**: Tags overlap ≥50% blocks directly, avoiding Chinese text segmentation issues
+| Mechanism | Implementation |
+|-----------|---------------|
+| Regex injection prevention | `escape_grep()` sed escaping |
+| Path traversal filtering | `replace(/[^a-zA-Z0-9_-]/g, '')` |
+| Concurrent write lock | `.write_lock/` directory atomic lock |
+| Tag dedup promotion | record.sh dedup + promote.sh ≥3x/7days threshold |
+| Graceful degradation | LLM → keyword → write, triple fallback chain |
 
 ---
 
-## 📖 Documentation
+## Code Statistics
 
-- [rocky-know-how/SKILL.md](./rocky-know-how/SKILL.md) - Skill config
-- [rocky-know-how/README.md](./rocky-know-how/README.md) - Full manual
-- [rocky-know-how/setup.md](./rocky-know-how/setup.md) - Setup guide
-- [rocky-know-how/operations.md](./rocky-know-how/operations.md) - Operations
-
----
-
-## 🏷️ Tag Promotion Rules
-
-| Condition | Result |
-|-----------|--------|
-| Same Tag appears ≥3 times in 30 days | → HOT layer `memory.md` |
+| Module | Lines |
+|--------|------:|
+| handler.js (Core Hook) | 1,110 |
+| 17 Scripts | 3,522 |
+| **Total** | **4,632** |
 
 ---
 
-## 📊 Stats Dashboard
+## Verified Testing
 
-```
-╔════════════════════════════════════════════╗
-║  📊 rocky-know-how Stats Dashboard v2.1.0 ║
-╚════════════════════════════════════════════╝
+### Models Tested
 
-🔥 HOT (Always loaded)
-  memory.md: 14 entries
-
-🌡️ WARM (On-demand)
-  domains/: 3 files
-  projects/: 2 files
-
-❄️ COLD (Archived)
-  archive/: 1 file
-
-📚 v1 Main Data (experiences.md)
-  Total: 45 entries
-  This month: 45
-```
+| Model | Provider | Forward Test | Reverse Test | Status |
+|-------|----------|:------------:|:------------:|:------:|
+| deepseek-v4 | deepseek (api-key) | ✅ Pass | ✅ 144/150 | Verified |
+| glm-5.1 | zai (api-key) | ✅ Pass | ✅ 146/150 | Verified |
+| MiniMax-M2.7-highspeed | minimax-portal (OAuth) | ✅ Pass | ✅ 146/150 | Verified |
 
 ---
 
-## 🔗 Links
+## Key Advantages
 
-- **Gitee**: https://gitee.com/rocky_tian/skill
-- **GitHub**: https://github.com/rockytian-top/skill
-- **ClawHub**: https://clawhub.ai/skills/rocky-know-how
+1. **Zero-config auto-learning** — Hook events automatically capture experience, no manual trigger needed
+2. **LLM dual-judgment** — First judges if worth saving, then decides create vs append
+3. **Triple degradation** — LLM → keyword → write, never loses data
+4. **Multi-provider** — Supports OpenAI, Anthropic, OAuth providers (zai/stepfun/minimax)
+5. **Production proven** — 45+ real experiences, 2.6MB data, stable operation
+6. **Safety first** — 5 security mechanisms (regex injection, path traversal, write lock, etc.)
 
 ---
 
-_Last updated: 2026-04-22 v2.7.1_
+## Repositories
+
+| Platform | URL |
+|----------|-----|
+| **Gitee** | https://gitee.com/rocky_tian/skill |
+| **GitHub** | https://github.com/rockytian-top/skill |
+| **ClawHub** | https://clawhub.ai/rockytian-top/rocky-know-how |
+
+---
+
+_Version: 3.0.0 | Tested: 2026-04-24 | License: MIT_
