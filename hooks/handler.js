@@ -1,13 +1,13 @@
 /**
  * rocky-know-how Hook for OpenClaw
  *
- * v2.8.18 - 模型判断集成
+ * v2.8.19 - 草稿到正式：AI优化增强
  * - agent/bootstrap: 启动时注入经验诀窍提醒
  * - before_compaction: 对话内容 → 模型判断 → 生成草稿
- * - after_compaction: 草稿内容 → 模型判断 → 写入正式经验
+ * - after_compaction: 草稿内容 → AI优化增强 → 写入正式经验
  * - before_reset: 对话内容 → 模型判断 → 生成草稿 → 写入正式经验
  *
- * @version 2.8.18
+ * @version 2.8.19
  */
 
 const { existsSync, readFileSync, writeFileSync, appendFileSync, unlinkSync, mkdirSync } = require('fs');
@@ -114,16 +114,28 @@ function callLLMJudge(content, type) {
     userPrompt = `对话内容：
 ${content}`;
   } else {
-    systemPrompt = `你是一个经验诀窍判断助手。判断以下草稿内容是否值得写入正式经验。
+    systemPrompt = `你是一个经验诀窍判断助手。判断并优化以下草稿内容。
+
+任务：
+1. 判断草稿是否值得写入正式经验
+2. 如果值得，优化和增强解决方案，使其更完整、更实用
 
 判断标准：
-- 有具体问题 + 有解决方案 → worth
+- 有具体问题 + 可优化 → worth
 - 草稿质量低、重复、不完整 → not worth
+
+优化要求：
+- 补充遗漏的关键步骤
+- 修正不准确的描述
+- 增加预防措施和最佳实践
+- 使解决方案可直接复用
 
 回复格式（仅输出JSON，不要其他内容）：
 {
   "worth": true或false,
-  "reason": "判断理由（20字内）"
+  "reason": "判断理由（20字内）",
+  "solution": "优化后的完整解决方案（如worth=true则必填）",
+  "prevention": "预防措施和最佳实践（如worth=true则必填）"
 }`;
     userPrompt = `草稿内容：
 ${content}`;
@@ -523,6 +535,20 @@ const handler = async (event) => {
           console.log(`[rocky-know-how] after_compaction LLM judge: worth=${judgeResult.worth}, reason=${judgeResult.reason}`);
           
           if (judgeResult.worth) {
+            // 用AI优化后的方案更新草稿
+            if (judgeResult.solution) {
+              draft.solution = judgeResult.solution;
+            }
+            if (judgeResult.prevention) {
+              draft.prevention = judgeResult.prevention;
+            }
+            // 写回草稿文件，auto-review会读取这个优化后的内容
+            try {
+              writeFileSync(draftFile, JSON.stringify(draft, null, 2), 'utf8');
+              console.log(`[rocky-know-how] after_compaction: draft ${draftId} updated with optimized solution`);
+            } catch (e) {
+              console.log(`[rocky-know-how] after_compaction: failed to update draft: ${e.message}`);
+            }
             // 调用 auto-review 写入正式经验
             console.log(`[rocky-know-how] after_compaction: draft ${draftId} approved, running auto-review`);
             runAutoReview(scriptsDir, learningsDir);
