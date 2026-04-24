@@ -1105,4 +1105,6 @@ const handler = async (event, ctx) => {
   }
 };
 
-module.exports = { handler };
+// 直接导出为对象，handler 和 default 都是函数本身
+const h = handler;
+module.exports = { handler: h, default: h };
