@@ -1,6 +1,6 @@
 # 📚 rocky-know-how
 
-> OpenClaw 经验积累技能 v2.9.2
+> OpenClaw 经验积累技能 v2.9.3
 > 核心理念：**搜索失败时，记录解决后经验，团队共享复用**
 
 [English](./README_EN.md) | [完整指南](./SKILL-GUIDE.md) | [架构设计](./ARCHITECTURE.md)
@@ -9,7 +9,7 @@
 
 ## 🎯 核心创新（重点突出）
 
-### 1. 🤖 LLM 双判断全自动写入（v2.9.2）
+### 1. 🤖 LLM 双判断全自动写入（v2.9.3）
 
 **ctx 阈值触发压缩后自动完成**：
 ```
@@ -146,9 +146,10 @@ bash ~/.openclaw/skills/rocky-know-how/scripts/record.sh \
 
 | 版本 | 日期 | 亮点 |
 |------|------|------|
-| **v2.9.2** | 2026-04-24 | 🤖 LLM双判断create/append替代关键词匹配 |
-| v2.9.2 | 2026-04-24 | draft + pending 双归档避免目录膨胀 |
-| v2.9.2 | 2026-04-24 | block regex修复，解析经验正文 |
+| **v2.9.3** | 2026-04-24 | 🤖 全Provider LLM判断(zai/stepfun/minimax OAuth) |
+| **v2.9.3** | 2026-04-24 | 🐛 extractAssistantMessage多格式兼容 |
+| v2.9.3 | 2026-04-24 | 🤖 LLM双判断create/append替代关键词匹配 |
+| v2.9.3 | 2026-04-24 | draft + pending 双归档避免目录膨胀 |
 | v2.9.1 | 2026-04-24 | 🎯 直接处理模式 + 移除硬编码模型 |
 | v2.9.1 | 2026-04-24 | after_compaction LLM双判断集成 |
 | v2.9.0 | 2026-04-24 | 压缩前生成草稿/压缩后写入正式经验 |
@@ -163,4 +164,4 @@ bash ~/.openclaw/skills/rocky-know-how/scripts/record.sh \
 
 ---
 
-**维护人**: 大颖 (fs-daying) | **版本**: v2.9.2
+**维护人**: 大颖 (fs-daying) | **版本**: v2.9.3

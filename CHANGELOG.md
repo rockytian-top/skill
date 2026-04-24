@@ -1,17 +1,25 @@
 # CHANGELOG
 
-## [2.9.2] - 2026-04-24
+## [2.9.3] - 2026-04-24
 
-### 🤖 LLM双判断"新增 vs 追加"替代关键词匹配
+### 🤖 全 Provider LLM 判断支持
 
-**核心变化**: `processPendingItem` 中新增完整 LLM 双判断流程
+**核心变化**: 支持所有 OpenClaw 配置的 provider 调用 LLM 判断
 
-- `searchSimilarExperiences()` — 搜索相似经验并读取 `experiences.md` 全文
-- `decideCreateOrAppend()` — LLM 语义判断 create/append
-  - 接收: 草稿全文 + 相似经验全文（最多3条）
-  - prompt 包含判断标准: 问题本质相同→append，问题独特→create
-  - append 时自动优化 solution 和 prevention
-- 降级策略: 无 LLM 配置时退回到关键词判断
+- **Provider 解析**: 从 `ctx.agentId` 查找 agent 配置，反推 `provider/model`
+- **OAuth 支持**: minimax-portal 从 `~/.openclaw/agents/main/agent/auth-profiles.json` 读取 token
+- **多格式兼容**: `extractAssistantMessage()` 支持所有响应格式
+  - OpenAI: `choices[0].message.content`
+  - Anthropic: `content[].text` (minimax)
+  - 国产模型: `reasoning_content` (zai/glm-5), `reasoning` (stepfun)
+
+### 🐛 fix: LLM 响应格式兼容
+
+| 模型 | 响应字段 | 修复前 | 修复后 |
+|------|---------|--------|--------|
+| zai (glm-5) | reasoning_content | ❌ 空 | ✅ |
+| stepfun | reasoning | ⚠️ 需解析 | ✅ |
+| minimax | content[].text | ❌ 空 | ✅ |
 
 ### 📦 draft + pending 双归档
 

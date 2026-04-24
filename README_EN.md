@@ -1,6 +1,6 @@
 # 📚 rocky-know-how
 
-> OpenClaw Learning Knowledge Skill v2.9.2
+> OpenClaw Learning Knowledge Skill v2.9.3
 > Core: **Search on failure, write after solving, learnings shared across agents**
 
 [English](./README_EN.md) | [Complete Guide](./SKILL-GUIDE.md) | [Architecture](./ARCHITECTURE.md)
@@ -9,7 +9,7 @@
 
 ## 🎯 Core Innovations
 
-### 1. 🤖 LLM Double-Judge Auto Write (v2.9.2)
+### 1. 🤖 LLM Double-Judge Auto Write (v2.9.3)
 
 **before_reset Hook automatically triggers**:
 ```
@@ -133,9 +133,10 @@ bash ~/.openclaw/skills/rocky-know-how/scripts/record.sh \
 
 | Version | Date | Highlights |
 |---------|------|------------|
-| **v2.9.2** | 2026-04-24 | 🤖 LLM double-judge create/append (vs keyword match) |
-| v2.9.2 | 2026-04-24 | draft + pending auto-archive |
-| v2.9.2 | 2026-04-24 | block regex fix for parsing experience blocks |
+| **v2.9.3** | 2026-04-24 | 🤖 Full provider LLM support (zai/stepfun/minimax OAuth) |
+| **v2.9.3** | 2026-04-24 | 🐛 extractAssistantMessage multi-format compatible |
+| v2.9.3 | 2026-04-24 | 🤖 LLM double-judge create/append (vs keyword match) |
+| v2.9.3 | 2026-04-24 | draft + pending auto-archive |
 | v2.9.1 | 2026-04-24 | 🎯 Direct processing mode + remove hardcoded model |
 | v2.9.1 | 2026-04-24 | after_compaction LLM double-judge integrated |
 | v2.9.0 | 2026-04-24 | before_compaction → after_compaction auto-write |
@@ -150,4 +151,4 @@ bash ~/.openclaw/skills/rocky-know-how/scripts/record.sh \
 
 ---
 
-**Maintainer**: 大颖 (fs-daying) | **Version**: v2.9.2
+**Maintainer**: 大颖 (fs-daying) | **Version**: v2.9.3

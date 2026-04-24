@@ -1,6 +1,6 @@
 # 📚 rocky-know-how 技能完全使用指南
 
-> 版本: 2.9.2
+> 版本: 2.9.3
 > 最后更新: 2026-04-24  
 > 维护人: 大颖 (fs-daying)
 
@@ -953,6 +953,6 @@ bash scripts/demote.sh        # 降级不常用
 
 ---
 
-**最后更新**: 2026-04-24 v2.9.2
+**最后更新**: 2026-04-24 v2.9.3
 **维护人**: 大颖 (fs-daying)
 **反馈**: https://gitee.com/rocky_tian/skill/issues
