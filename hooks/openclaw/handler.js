@@ -69,11 +69,16 @@ function getLearningsDir(env) {
  */
 function extractAssistantMessage(parsed) {
   // Anthropic messages format: content[].text (优先，minimax 等)
-  // 找所有 text 类型的 block，合并内容
   if (parsed.content && Array.isArray(parsed.content)) {
+    // 优先找 text 类型的 block
     const textBlocks = parsed.content.filter(block => block.type === 'text' && block.text);
     if (textBlocks.length > 0) {
       return textBlocks.map(b => b.text).join('');
+    }
+    // minimax 有时只返回 thinking，没有 text
+    const thinkingBlocks = parsed.content.filter(block => block.type === 'thinking' && block.thinking);
+    if (thinkingBlocks.length > 0) {
+      return thinkingBlocks.map(b => b.thinking).join('');
     }
   }
   // OpenAI format: choices[0].message.content
