@@ -65,13 +65,35 @@ function getLearningsDir(env) {
  * @param {object} event - hook 事件对象
  * @returns {object|null} { provider, apiUrl, apiKey, model }
  */
-function resolveProviderInfo(event) {
+/**
+ * 从 event context 或 agent 配置解析 provider 信息
+ * @param {object} event - hook event 对象
+ * @param {object} ctx - hook ctx 对象（包含 agentId/sessionKey）
+ * @returns {object|null} provider 信息
+ */
+function resolveProviderInfo(event, ctx) {
   const context = event?.context || {};
-  const providerId = context.modelProviderId;
-  const modelId = context.modelId;
+  let providerId = context.modelProviderId;
+  let modelId = context.modelId;
+
+  // 尝试从 agent 配置反查 provider（hook context 不传递 modelProviderId 时）
+  if (!providerId && ctx?.agentId) {
+    try {
+      const openclawConfig = JSON.parse(readFileSync(join(process.env.HOME || '~', '.openclaw', 'openclaw.json'), 'utf8'));
+      const agents = openclawConfig?.agents?.list || [];
+      const agent = agents.find(a => a.id === ctx.agentId);
+      if (agent?.model) {
+        const [pId, mId] = agent.model.split('/');
+        providerId = providerId || pId;
+        modelId = modelId || mId;
+      }
+    } catch (e) {
+      // 忽略，继续尝试其他方式
+    }
+  }
 
   if (!providerId) {
-    console.log('[rocky-know-how] resolveProviderInfo: no modelProviderId in context, skipping');
+    console.log('[rocky-know-how] resolveProviderInfo: no providerId found, skipping');
     return null;
   }
 
@@ -96,10 +118,19 @@ function resolveProviderInfo(event) {
       apiPath = '/v1/messages';
     }
 
+    const apiKey = provider.apiKey || '';
+
+    // OAuth provider (无 apiKey): OpenClaw auth store 不对 hook 暴露 token
+    // 降级到关键词匹配，不尝试 LLM 调用
+    if (provider.authHeader && !apiKey) {
+      console.log(`[rocky-know-how] resolveProviderInfo: ${providerId} is OAuth (no apiKey), skipping LLM`);
+      return null;
+    }
+
     const apiUrl = `${provider.baseUrl}${apiPath}`;
     const model = modelId || provider.model || '';
 
-    return { provider, providerId, apiUrl, apiKey: provider.apiKey || '', model };
+    return { provider, providerId, apiUrl, apiKey, model };
   } catch (e) {
     console.log(`[rocky-know-how] resolveProviderInfo failed: ${e.message}`);
     return null;
@@ -228,7 +259,7 @@ ${content}`;
   }
 
   // 默认返回不worth,避免误写
-  return { worth: false, reason: 'LLM调用失败,默认不写入' };
+  return { worth: false, reason: 'LLM调用失败', llmFailed: true };
 }
 
 /**
@@ -318,11 +349,11 @@ ${similarCtx}`;
     console.log(`[rocky-know-how] decideCreateOrAppend LLM failed: ${e.message}`);
   }
 
-  // LLM 失败，降级
+  // LLM 失败，降级到关键词
   if (similarExperiences && similarExperiences.length > 0) {
-    return { action: 'append', targetId: similarExperiences[0].id, reason: 'LLM失败，降级到关键词判断' };
+    return { action: 'append', targetId: similarExperiences[0].id, reason: 'LLM失败，降级关键词', llmFailed: true };
   }
-  return { action: 'create', reason: 'LLM失败且无相似经验' };
+  return { action: 'create', reason: 'LLM失败且无相似经验', llmFailed: true };
 }
 
 /**
@@ -595,6 +626,43 @@ function processPendingItem(pendingFile, scriptsDir, learningsDir, providerInfo)
 
     console.log(`[rocky-know-how] Processing pending: ${pending.id}`);
 
+    // 无 LLM provider（OAuth 等）：降级到关键词判断
+    if (!providerInfo) {
+      const keywords = (pending.tools || []).slice(0, 3).join(' ');
+      const similarExperiences = searchSimilarExperiences(scriptsDir, keywords);
+      console.log(`[rocky-know-how] Keyword fallback: found ${similarExperiences.length} similar`);
+
+      if (similarExperiences.length > 0) {
+        // 追加到第一个相似经验
+        const targetId = similarExperiences[0].id;
+        const solution = (pending.errors || []).join('; ') || '待补充';
+        try {
+          execSync(`bash "${join(scriptsDir, 'append-record.sh')}" "${targetId}" "${solution.replace(/"/g, '\\"')}" "${(pending.tools || []).join(',')}"`, {
+            cwd: learningsDir, stdio: 'pipe', timeout: 15000
+          });
+          console.log(`[rocky-know-how] Appended to ${targetId} (keyword)`);
+        } catch (e) {
+          console.log(`[rocky-know-how] append-record.sh failed: ${e.message}`);
+        }
+      } else {
+        // 新增经验
+        try {
+          execSync(`bash "${join(scriptsDir, 'record.sh')}" "${(pending.task || '会话总结').replace(/"/g, '\\"')}" "${((pending.errors || []).join('; ') || '无').replace(/"/g, '\\"')}" "待补充" "No similar problems" "${(pending.tools || []).join(',')}" "global"`, {
+            cwd: learningsDir, stdio: 'pipe', timeout: 15000
+          });
+          console.log(`[rocky-know-how] Created new experience (keyword)`);
+        } catch (e) {
+          console.log(`[rocky-know-how] record.sh failed: ${e.message}`);
+        }
+      }
+
+      // 归档 pending
+      const archiveDir = join(learningsDir, 'pending', 'archive');
+      if (!existsSync(archiveDir)) mkdirSync(archiveDir, { recursive: true });
+      require('fs').renameSync(pendingFile, join(archiveDir, `${pending.id}.json`));
+      return;
+    }
+
     // 构建判断内容
     const summary = `任务: ${pending.task || '无'}
 工具: ${(pending.tools || []).join(', ') || '无'}
@@ -603,6 +671,42 @@ function processPendingItem(pendingFile, scriptsDir, learningsDir, providerInfo)
     // LLM 判断是否值得写入
     const judgeResult = callLLMJudge(summary, 'draft', providerInfo);
     console.log(`[rocky-know-how] LLM judge: worth=${judgeResult.worth}, reason=${judgeResult.reason}`);
+
+    // LLM 调用失败，降级到关键词匹配
+    if (judgeResult.llmFailed) {
+      console.log(`[rocky-know-how] LLM failed, falling back to keyword matching`);
+      const keywords = (pending.tools || []).slice(0, 3).join(' ');
+      const similarExperiences = searchSimilarExperiences(scriptsDir, keywords);
+      console.log(`[rocky-know-how] Keyword fallback: found ${similarExperiences.length} similar`);
+
+      if (similarExperiences.length > 0) {
+        const targetId = similarExperiences[0].id;
+        const solution = (pending.errors || []).join('; ') || '待补充';
+        try {
+          execSync(`bash "${join(scriptsDir, 'append-record.sh')}" "${targetId}" "${solution.replace(/"/g, '\\"')}" "${(pending.tools || []).join(',')}"`, {
+            cwd: learningsDir, stdio: 'pipe', timeout: 15000
+          });
+          console.log(`[rocky-know-how] Appended to ${targetId} (keyword fallback)`);
+        } catch (e) {
+          console.log(`[rocky-know-how] append-record.sh failed: ${e.message}`);
+        }
+      } else {
+        try {
+          execSync(`bash "${join(scriptsDir, 'record.sh')}" "${(pending.task || '会话总结').replace(/"/g, '\\"')}" "${((pending.errors || []).join('; ') || '无').replace(/"/g, '\\"')}" "待补充" "No similar problems" "${(pending.tools || []).join(',')}" "global"`, {
+            cwd: learningsDir, stdio: 'pipe', timeout: 15000
+          });
+          console.log(`[rocky-know-how] Created new experience (keyword fallback)`);
+        } catch (e) {
+          console.log(`[rocky-know-how] record.sh failed: ${e.message}`);
+        }
+      }
+
+      // 归档 pending
+      const archiveDir = join(learningsDir, 'pending', 'archive');
+      if (!existsSync(archiveDir)) mkdirSync(archiveDir, { recursive: true });
+      require('fs').renameSync(pendingFile, join(archiveDir, `${pending.id}.json`));
+      return;
+    }
 
     if (judgeResult.worth) {
       // 生成草稿
@@ -627,6 +731,39 @@ function processPendingItem(pendingFile, scriptsDir, learningsDir, providerInfo)
         // LLM 判断: 新增还是追加
         const decision = decideCreateOrAppend(draftContent, similarExperiences, providerInfo);
         console.log(`[rocky-know-how] LLM decision: ${decision.action} ${decision.targetId || ''} - ${decision.reason}`);
+
+        // LLM 调用失败，降级到关键词
+        if (decision.llmFailed) {
+          console.log(`[rocky-know-how] decideCreateOrAppend LLM failed, keyword fallback`);
+          if (similarExperiences.length > 0) {
+            const targetId = similarExperiences[0].id;
+            const solution = draftContent.solution || (pending.errors || []).join('; ') || '待补充';
+            try {
+              execSync(`bash "${join(scriptsDir, 'append-record.sh')}" "${targetId}" "${solution.replace(/"/g, '\\"')}" "${(draftContent.tags || []).join(',')}"`, {
+                cwd: learningsDir, stdio: 'pipe', timeout: 15000
+              });
+              console.log(`[rocky-know-how] Appended to ${targetId} (keyword fallback)`);
+            } catch (e) {
+              console.log(`[rocky-know-how] append-record.sh failed: ${e.message}`);
+            }
+          } else {
+            try {
+              execSync(`bash "${join(scriptsDir, 'record.sh')}" "${problem.replace(/"/g, '\\"')}" "${((pending.errors || []).join('; ') || '无').replace(/"/g, '\\"')}" "待补充" "No similar problems" "${(draftContent.tags || []).join(',')}" "global"`, {
+                cwd: learningsDir, stdio: 'pipe', timeout: 15000
+              });
+              console.log(`[rocky-know-how] Created new experience (keyword fallback)`);
+            } catch (e) {
+              console.log(`[rocky-know-how] record.sh failed: ${e.message}`);
+            }
+          }
+          // 归档 draft
+          if (draftId && existsSync(draftFile)) {
+            const draftArchiveDir = join(learningsDir, 'drafts', 'archive');
+            if (!existsSync(draftArchiveDir)) mkdirSync(draftArchiveDir, { recursive: true });
+            require('fs').renameSync(draftFile, join(draftArchiveDir, `${draftId}.json`));
+          }
+          return;
+        }
 
         if (decision.action === 'append' && decision.targetId) {
           // 追加到已有经验
@@ -745,11 +882,12 @@ ${summary.errors?.length ? `**遇到的问题**: ${summary.errors.join('; ')}` :
 // ============================================================
 // 主 Handler - 统一处理所有 Hook 事件
 // ============================================================
-const handler = async (event) => {
+const handler = async (event, ctx) => {
   if (!event || typeof event !== 'object') return;
 
-  const sessionKey = event.sessionKey || '';
+  const sessionKey = event.sessionKey || ctx?.sessionKey || '';
   const env = process.env;
+  const agentId = ctx?.agentId || '';
 
   // 跳过子 agent
   if (sessionKey.includes(':subagent:')) return;
@@ -859,13 +997,13 @@ const handler = async (event) => {
 
       console.log(`[rocky-know-how] after_compaction: found ${files.length} pending learnings, processing directly`);
 
-      // 从 event context 解析当前 agent 的 provider
-      const providerInfo = resolveProviderInfo(event);
-      if (!providerInfo) {
-        console.log('[rocky-know-how] after_compaction: no provider info, skipping');
-        return;
+      // 从 event context 或 agent 配置解析当前 agent 的 provider
+      const providerInfo = resolveProviderInfo(event, { agentId });
+      if (providerInfo) {
+        console.log(`[rocky-know-how] using provider: ${providerInfo.providerId} (${providerInfo.providerId}@${providerInfo.model})`);
+      } else {
+        console.log('[rocky-know-how] no API-key provider, falling back to keyword matching');
       }
-      console.log(`[rocky-know-how] using provider: ${providerInfo.providerId} (${providerInfo.providerId}@${providerInfo.model})`);
 
       // 逐个处理
       for (const file of files) {
