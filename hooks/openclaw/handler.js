@@ -67,16 +67,24 @@ function getLearningsDir(env) {
  * @returns {string} assistant 消息内容
  */
 function extractAssistantMessage(parsed) {
+  // Anthropic messages format: content[].text (优先，minimax 等)
+  // 找所有 text 类型的 block，合并内容
+  if (parsed.content && Array.isArray(parsed.content)) {
+    const textBlocks = parsed.content.filter(block => block.type === 'text' && block.text);
+    if (textBlocks.length > 0) {
+      return textBlocks.map(b => b.text).join('');
+    }
+  }
   // OpenAI format: choices[0].message.content
   if (parsed.choices?.[0]?.message?.content) {
     return parsed.choices[0].message.content;
   }
-  // Anthropic messages format: content[].text
-  if (parsed.content && Array.isArray(parsed.content)) {
-    const textBlock = parsed.content.find(block => block.type === 'text');
-    if (textBlock?.text) {
-      return textBlock.text;
-    }
+  // 国产模型 reasoning 字段 (glm-5, stepfun 等)
+  if (parsed.choices?.[0]?.message?.reasoning_content) {
+    return parsed.choices[0].message.reasoning_content;
+  }
+  if (parsed.choices?.[0]?.message?.reasoning) {
+    return parsed.choices[0].message.reasoning;
   }
   return '';
 }
