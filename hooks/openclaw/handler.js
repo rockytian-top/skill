@@ -6,7 +6,7 @@
  * - after_compaction: 直接调用 LLM 判断 + 处理
  * - 不触发新 agent,避免队列等待
  *
- * @version 2.9.1
+ * @version 2.9.2
  */
 
 const { existsSync, readFileSync, writeFileSync, appendFileSync, unlinkSync, mkdirSync } = require('fs');
@@ -61,6 +61,52 @@ function getLearningsDir(env) {
 }
 
 /**
+ * 从 hook event context 解析出当前 agent 使用的 provider 配置
+ * @param {object} event - hook 事件对象
+ * @returns {object|null} { provider, apiUrl, apiKey, model }
+ */
+function resolveProviderInfo(event) {
+  const context = event?.context || {};
+  const providerId = context.modelProviderId;
+  const modelId = context.modelId;
+
+  if (!providerId) {
+    console.log('[rocky-know-how] resolveProviderInfo: no modelProviderId in context, skipping');
+    return null;
+  }
+
+  try {
+    const openclawConfig = JSON.parse(readFileSync(join(process.env.HOME || '~', '.openclaw', 'openclaw.json'), 'utf8'));
+    const providers = openclawConfig?.models?.providers || {};
+    const provider = providers[providerId];
+
+    if (!provider) {
+      console.log(`[rocky-know-how] resolveProviderInfo: provider ${providerId} not found in config`);
+      return null;
+    }
+
+    if (!provider.baseUrl) {
+      console.log(`[rocky-know-how] resolveProviderInfo: provider ${providerId} has no baseUrl`);
+      return null;
+    }
+
+    // 根据 api 类型确定路径
+    let apiPath = '/chat/completions';
+    if (provider.api === 'anthropic-messages') {
+      apiPath = '/v1/messages';
+    }
+
+    const apiUrl = `${provider.baseUrl}${apiPath}`;
+    const model = modelId || provider.model || '';
+
+    return { provider, providerId, apiUrl, apiKey: provider.apiKey || '', model };
+  } catch (e) {
+    console.log(`[rocky-know-how] resolveProviderInfo failed: ${e.message}`);
+    return null;
+  }
+}
+
+/**
  * 执行 auto-review.sh 全自动审核
  */
 function runAutoReview(scriptsDir, learningsDir) {
@@ -92,21 +138,16 @@ function runAutoReview(scriptsDir, learningsDir) {
  * 调用模型判断内容是否值得写入
  * @param {string} content - 对话内容或草稿内容
  * @param {string} type - "draft" 或 "formal"
+ * @param {object} providerInfo - resolveProviderInfo() 返回的 provider 信息
  * @returns {object} { worth: boolean, reason: string, summary?: string, tags?: string[] }
  */
-function callLLMJudge(content, type) {
-  // 从 openclaw.json 读取 zai provider 配置
-  const openclawConfig = JSON.parse(readFileSync(join(process.env.HOME || '~', '.openclaw', 'openclaw.json'), 'utf8'));
-  const zaiProvider = openclawConfig?.models?.providers?.zai;
-
-  if (!zaiProvider?.baseUrl) {
-    console.log('[rocky-know-how] callLLMJudge: no zai provider configured, skipping');
+function callLLMJudge(content, type, providerInfo) {
+  if (!providerInfo?.apiUrl) {
+    console.log('[rocky-know-how] callLLMJudge: no provider configured, skipping');
     return { worth: false, reason: '无模型配置' };
   }
 
-  const apiUrl = `${zaiProvider.baseUrl}/chat/completions`;
-  const model = zaiProvider.model || '';
-  const apiKey = zaiProvider.apiKey || '';
+  const { apiUrl, apiKey, model } = providerInfo;
 
   let systemPrompt, userPrompt;
 
@@ -193,14 +234,12 @@ ${content}`;
 /**
  * 用 LLM 判断草稿应该新增还是追加到已有经验
  * @param {object} draft - 草稿对象
- * @param {object[]} similarExperiences - 相似经验列表 [{id, problem, solution, area}, ...]
+ * @param {object[]} similarExperiences - 相似经验列表
+ * @param {object} providerInfo - resolveProviderInfo() 返回的 provider 信息
  * @returns {object} { action: "create" | "append", targetId?: string, reason: string, optimizedSolution?: string, optimizedPrevention?: string }
  */
-function decideCreateOrAppend(draft, similarExperiences) {
-  const openclawConfig = JSON.parse(readFileSync(join(process.env.HOME || '~', '.openclaw', 'openclaw.json'), 'utf8'));
-  const zaiProvider = openclawConfig?.models?.providers?.zai;
-
-  if (!zaiProvider?.baseUrl) {
+function decideCreateOrAppend(draft, similarExperiences, providerInfo) {
+  if (!providerInfo?.apiUrl) {
     // 无配置，降级到关键词判断
     if (similarExperiences && similarExperiences.length > 0) {
       return { action: 'append', targetId: similarExperiences[0].id, reason: '无LLM配置，降级到关键词判断' };
@@ -208,9 +247,7 @@ function decideCreateOrAppend(draft, similarExperiences) {
     return { action: 'create', reason: '无LLM配置且无相似经验' };
   }
 
-  const apiUrl = `${zaiProvider.baseUrl}/chat/completions`;
-  const model = zaiProvider.model || '';
-  const apiKey = zaiProvider.apiKey || '';
+  const { apiUrl, apiKey, model } = providerInfo;
 
   // 构造相似经验上下文
   let similarCtx = '无相似经验';
@@ -546,8 +583,12 @@ function savePendingLearnings(sessionKey, env, messages) {
 
 /**
  * 处理单个待处理项:LLM判断 + 生成草稿/归档
+ * @param {string} pendingFile
+ * @param {string} scriptsDir
+ * @param {string} learningsDir
+ * @param {object} providerInfo - resolveProviderInfo() 返回的 provider 信息
  */
-function processPendingItem(pendingFile, scriptsDir, learningsDir) {
+function processPendingItem(pendingFile, scriptsDir, learningsDir, providerInfo) {
   try {
     const content = readFileSync(pendingFile, 'utf8');
     const pending = JSON.parse(content);
@@ -560,7 +601,7 @@ function processPendingItem(pendingFile, scriptsDir, learningsDir) {
 错误: ${(pending.errors || []).join('; ') || '无'}`;
 
     // LLM 判断是否值得写入
-    const judgeResult = callLLMJudge(summary, 'draft');
+    const judgeResult = callLLMJudge(summary, 'draft', providerInfo);
     console.log(`[rocky-know-how] LLM judge: worth=${judgeResult.worth}, reason=${judgeResult.reason}`);
 
     if (judgeResult.worth) {
@@ -584,7 +625,7 @@ function processPendingItem(pendingFile, scriptsDir, learningsDir) {
         console.log(`[rocky-know-how] Found ${similarExperiences.length} similar experiences`);
 
         // LLM 判断: 新增还是追加
-        const decision = decideCreateOrAppend(draftContent, similarExperiences);
+        const decision = decideCreateOrAppend(draftContent, similarExperiences, providerInfo);
         console.log(`[rocky-know-how] LLM decision: ${decision.action} ${decision.targetId || ''} - ${decision.reason}`);
 
         if (decision.action === 'append' && decision.targetId) {
@@ -818,10 +859,18 @@ const handler = async (event) => {
 
       console.log(`[rocky-know-how] after_compaction: found ${files.length} pending learnings, processing directly`);
 
+      // 从 event context 解析当前 agent 的 provider
+      const providerInfo = resolveProviderInfo(event);
+      if (!providerInfo) {
+        console.log('[rocky-know-how] after_compaction: no provider info, skipping');
+        return;
+      }
+      console.log(`[rocky-know-how] using provider: ${providerInfo.providerId} (${providerInfo.providerId}@${providerInfo.model})`);
+
       // 逐个处理
       for (const file of files) {
         const pendingFile = join(pendingDir, file);
-        processPendingItem(pendingFile, scriptsDir, learningsDir);
+        processPendingItem(pendingFile, scriptsDir, learningsDir, providerInfo);
       }
 
     } catch (e) {
