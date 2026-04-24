@@ -1,5 +1,5 @@
 #!/bin/bash
-# rocky-know-how 公共函数库 v2.7.1
+# rocky-know-how 公共函数库 v2.7.0
 # 被 search.sh / record.sh 等脚本 source
 
 # 获取状态目录（支持多网关实例）
@@ -37,5 +37,5 @@ acquire_lock() {
 # R4 fix: 释放锁
 release_lock() {
   local lock_dir="$1"
-  rm -rf "$lock_dir" 2>/dev/null
+  rmdir "$lock_dir" 2>/dev/null
 }

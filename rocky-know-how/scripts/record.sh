@@ -1,5 +1,5 @@
 #!/bin/bash
-# rocky-know-how 写入经验诀窍 v2.7.1
+# rocky-know-how 写入经验诀窍 v2.9.1
 # 用法: record.sh [--dry-run] [--namespace global|domain|project] "<问题>" "<踩坑过程>" "<正确方案>" "<预防>" "<tags>" [area|domain]
 # 例: record.sh "排查网站只看进程" "第1次:只看进程→报正常" "curl验证" "必须curl" "troubleshooting" infra
 
@@ -46,15 +46,44 @@ get_workspace() {
 # 解析参数
 DRY_RUN=false
 NAMESPACE="global"
+AUTO_MODE=false
+AUTO_TAGS=""
 ARGS=()
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --dry-run) DRY_RUN=true; shift ;;
     --namespace)
       NAMESPACE="$2"; shift 2 ;;
+    --auto)
+      AUTO_MODE=true; shift ;;
+    --tags)
+      AUTO_TAGS="$2"; shift 2 ;;
     *)         ARGS+=("$1"); shift ;;
   esac
 done
+
+# auto 模式：从 AI 分析结果自动填充字段
+SKIP_NORMAL_ASSIGN=false
+if $AUTO_MODE && [[ ${#ARGS[@]} -ge 1 ]]; then
+  # AI 传入的是经验描述（experience），自动拆分为各字段
+  AUTO_EXPERIENCE="${ARGS[0]}"
+  # 问题：从经验中提取（通用描述）
+  PROBLEM="自动记录：${AUTO_EXPERIENCE:0:50}"
+  # 踩坑过程
+  FAILURES="（自动分析对话生成）"
+  # 正确方案
+  SOLUTION="${AUTO_EXPERIENCE}"
+  # 预防
+  PREVENT="（见经验描述）"
+  # 标签
+  TAGS="${AUTO_TAGS:-auto}"
+  # 命名空间
+  NAMESPACE="global"
+  # 输出模式
+  DRY_RUN=false
+  # 跳过正常参数处理
+  SKIP_NORMAL_ASSIGN=true
+fi
 
 # 校验：位置参数不能以 -- 开头
 # ARGS[0] 以 -- 开头 → 调用者传了未知选项（如 record.sh --tag "..."）
@@ -72,20 +101,30 @@ for i in "${!ARGS[@]}"; do
   fi
 done
 
-if [ ${#ARGS[@]} -lt 5 ]; then
+if ! $AUTO_MODE && [ ${#ARGS[@]} -lt 5 ]; then
   echo "用法: record.sh [--dry-run] [--namespace global|domain|project] \"<问题>\" \"<踩坑过程>\" \"<正确方案>\" \"<预防>\" \"<tags>\" [namespace]"
   echo "  --dry-run    预览将写入的内容，不实际写入"
   echo "  --namespace  写入命名空间: global(默认)|domain|project"
+  echo "  --auto       自动模式（AI分析结果自动填充字段）"
+  echo "  --tags       自动模式下的标签（逗号分隔）"
   echo "  area/domain/project 名由第五个参数指定"
   exit 1
 fi
 
-PROBLEM="${ARGS[0]}"
-FAILURES="${ARGS[1]}"
-SOLUTION="${ARGS[2]}"
-PREVENT="${ARGS[3]}"
-TAGS="${ARGS[4]}"
-NS_VALUE="${ARGS[5]:-}"
+if ! $SKIP_NORMAL_ASSIGN; then
+  PROBLEM="${ARGS[0]}"
+  FAILURES="${ARGS[1]}"
+  SOLUTION="${ARGS[2]}"
+  PREVENT="${ARGS[3]}"
+  TAGS="${ARGS[4]}"
+  NS_VALUE="${ARGS[5]:-}"
+fi
+
+# 验证参数安全性（路径穿越检测）
+if [[ "$PROBLEM" == *../* || "$FAILURES" == *../* || "$SOLUTION" == *../* || "$PREVENT" == *../* || "$TAGS" == *../* || "$NS_VALUE" == *../* ]]; then
+  echo "❌ 参数包含非法字符"
+  exit 1
+fi
 
 # 确定领域/项目名
 AREA="${NS_VALUE:-infra}"
@@ -127,12 +166,21 @@ generate_id() {
       return
     fi
   done
-  
-  # 收集所有可能含ID的文件
+
+  # 收集所有可能含ID的文件（macOS ls 无匹配时返回字面 *.md，用 temp file 避免）
   files="$ERRORS_FILE"
-  [ -d "$DOMAINS_DIR" ]  && files="$files $(ls "$DOMAINS_DIR"/*.md 2>/dev/null)"
-  [ -d "$PROJECTS_DIR" ] && files="$files $(ls "$PROJECTS_DIR"/*.md 2>/dev/null)"
-  [ -d "$ARCHIVE_DIR" ]  && files="$files $(ls "$ARCHIVE_DIR"/*.md 2>/dev/null)"
+  if [ -d "$DOMAINS_DIR" ]; then
+    dom_files=$(ls "$DOMAINS_DIR"/*.md 2>/dev/null)
+    [ -n "$dom_files" ] && files="$files $dom_files"
+  fi
+  if [ -d "$PROJECTS_DIR" ]; then
+    proj_files=$(ls "$PROJECTS_DIR"/*.md 2>/dev/null)
+    [ -n "$proj_files" ] && files="$files $proj_files"
+  fi
+  if [ -d "$ARCHIVE_DIR" ]; then
+    arc_files=$(ls "$ARCHIVE_DIR"/*.md 2>/dev/null)
+    [ -n "$arc_files" ] && files="$files $arc_files"
+  fi
 
   # 用临时文件收集所有 seq，避免子 shell 变量修改丢失问题
   local tmpfile=$(mktemp)
@@ -192,11 +240,19 @@ check_duplicate() {
       # 将 exist_tag_set 写入临时文件，用 grep 批量匹配，避免 O(n²) 嵌套循环
       local exist_tmp=$(mktemp)
       echo "$exist_tag_set" > "$exist_tmp"
-      local tag_match=$(echo "$new_tag_set" | grep -F -f "$exist_tmp" 2>/dev/null | wc -l | tr -d ' ')
+      # 精确匹配：逐行比对，避免 substring 误匹配（如 "doc" 匹配 "docker"）
+      local tag_match=0
+      while IFS= read -r new_tag; do
+        [ -z "$new_tag" ] && continue
+        while IFS= read -r exist_tag; do
+          [ -z "$exist_tag" ] && continue
+          [ "$new_tag" = "$exist_tag" ] && tag_match=$((tag_match + 1))
+        done < "$exist_tmp"
+      done <<< "$new_tag_set"
       rm -f "$exist_tmp"
       [ "$tag_total" -eq 0 ] && tag_total=1
       local tag_ratio=$((tag_match * 100 / tag_total))
-      if [ "$tag_ratio" -ge 50 ]; then
+      if [ "$tag_ratio" -ge 70 ]; then
         # Tags 重叠度≥50%即拦截（不需要文字相似度检查）
         found_id="$exist_id"
         found_summary="$exist_problem"
@@ -218,20 +274,27 @@ check_duplicate() {
 
 init_file "$ERRORS_FILE" "# 经验诀窍"
 
-# 去重检查（dry-run 也执行，以便预览）
-if check_duplicate; then
-  if $DRY_RUN; then
-    echo "⚠️  与已有条目重复 (dry-run 模式，仍显示预览)"
-  else
-    echo "(未写入，因与已有条目重复)"
+# R6 fix: 获取写入锁（保护去重、ID生成、写入手拉手，防止 TOCTOU 竞态）
+if ! $DRY_RUN; then
+  WRITE_LOCK_DIR="$SHARED_DIR/.write_lock"
+  if ! mkdir "$WRITE_LOCK_DIR" 2>/dev/null; then
+    echo "❌ 写入冲突，请稍后重试"
     exit 1
   fi
-fi
+  trap 'rmdir "$WRITE_LOCK_DIR" 2>/dev/null' EXIT
 
-ID=$(generate_id)
-NOW=$(date '+%Y-%m-%d %H:%M:%S')
+  # 去重检查（持有锁）
+  if check_duplicate; then
+    echo "(未写入，因与已有条目重复)"
+    rmdir "$WRITE_LOCK_DIR" 2>/dev/null
+    exit 1
+  fi
 
-ENTRY="
+  # 在锁保护下生成 ID
+  ID=$(generate_id)
+  NOW=$(date '+%Y-%m-%d %H:%M:%S')
+
+  ENTRY="
 
 ## [${ID}] ${PROBLEM}
 
@@ -256,14 +319,44 @@ ${PREVENT}
 ---
 "
 
-# ============ 写入 experiences.md（v1 主数据） ============
-if $DRY_RUN; then
+  # 写入 experiences.md（v1 主数据）
+  echo "$ENTRY" >> "$ERRORS_FILE"
+  echo "✅ 已写入经验诀窍: ${ID} [${AREA}]"
+
+  # 锁通过 trap 在脚本退出时释放
+else
+  # dry-run 模式：不去重，不写锁
+  ID=$(generate_id)
+  NOW=$(date '+%Y-%m-%d %H:%M:%S')
+
+  ENTRY="
+
+## [${ID}] ${PROBLEM}
+
+**Area**: ${AREA}
+**Failed-Count**: ≥2
+**Tags**: ${TAGS}
+**Created**: ${NOW}
+**Namespace**: ${NAMESPACE}
+
+### 问题
+${PROBLEM}
+
+### 踩坑过程
+${FAILURES}
+
+### 正确方案
+${SOLUTION}
+
+### 预防
+${PREVENT}
+
+---
+"
+
   echo "=== 预览写入内容 (dry-run) ==="
   echo "$ENTRY"
   echo "=== 目标文件: $ERRORS_FILE ==="
-else
-  echo "$ENTRY" >> "$ERRORS_FILE"
-  echo "✅ 已写入经验诀窍: ${ID} [${AREA}]"
 fi
 
 # ============ 同步到 corrections.md（v2 纠正日志） ============
@@ -343,12 +436,12 @@ if ! $DRY_RUN; then
     # P4 fix: 使用单引号 heredoc 防止命令注入（变量不展开）
     printf '%s\n' "" >> "$MEMORY_FILE_WS"
     printf '## 📚 经验诀窍 %s: %s\n' "$ID" "$PROBLEM" >> "$MEMORY_FILE_WS"
-    printf '<!-- rocky-know-how:%s -->\n\n' "$ID" >> "$MEMORY_FILE_WS"
-    printf '- **踩坑**: %s\n' "$FAILURES" >> "$MEMORY_FILE_WS"
-    printf '- **正确方案**: %s\n' "$SOLUTION" >> "$MEMORY_FILE_WS"
-    printf '- **预防**: %s\n' "$PREVENT" >> "$MEMORY_FILE_WS"
-    printf '- **Tags**: %s\n' "$TAGS" >> "$MEMORY_FILE_WS"
-    printf '- **Namespace**: %s\n' "$NAMESPACE" >> "$MEMORY_FILE_WS"
+    printf "<!-- rocky-know-how:%s -->\n\n" "$ID" >> "$MEMORY_FILE_WS"
+    printf '%s\n' "- **踩坑**: $FAILURES" >> "$MEMORY_FILE_WS"
+    printf '%s\n' "- **正确方案**: $SOLUTION" >> "$MEMORY_FILE_WS"
+    printf '%s\n' "- **预防**: $PREVENT" >> "$MEMORY_FILE_WS"
+    printf '%s\n' "- **Tags**: $TAGS" >> "$MEMORY_FILE_WS"
+    printf '%s\n' "- **Namespace**: $NAMESPACE" >> "$MEMORY_FILE_WS"
     echo "✅ 已同步到 memory/$(date +%Y-%m-%d).md"
   fi
 

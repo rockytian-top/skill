@@ -1,5 +1,5 @@
 #!/bin/bash
-# rocky-know-how 搜经验诀窍 v2.7.1
+# rocky-know-how 搜经验诀窍 v2.9.1
 SKILL_DIR="$(cd "$(dirname "$0")" && pwd)"
 
 # 用法: search.sh [选项] <关键词1> [关键词2]...
@@ -15,15 +15,30 @@ SKILL_DIR="$(cd "$(dirname "$0")" && pwd)"
 #       search.sh --semantic "关键词"  语义搜索（基于向量）
 
 # R1 fix: 路径穿越校验函数
+# N13 fix: 精确匹配路径穿越组件 .. 和 ..\ 而非宽泛匹配
 validate_name() {
   local name="$1"
+  # 检测路径穿越: ../ 或 ..\ 或 /../ 或 \..\
+  if [[ "$name" == *../* || "$name" == *..\\* || "$name" == */../* || "$name" == *\\..\\* ]]; then
+    echo "❌ 无效名称: 包含非法字符"
+    return 1
+  fi
+  # 检测 shell 特殊字符
   case "$name" in
-    *../*|*..\\\\*|*/*|*\\\\*|*\`*|*\$*) 
+    *\`*|*\$*)
       echo "❌ 无效名称: 包含非法字符"
       return 1 ;;
   esac
   return 0
 }
+
+# 转义 grep 正则特殊字符，防止正则注入和 DoS
+escape_grep() {
+  printf '%s' "$1" | sed 's/[[\.*^$+?{|()]/\\&/g'
+}
+
+# 限制输入长度，防止资源耗尽
+MAX_INPUT_LEN=1000
 
 MAX_RESULTS=10
 SINCE_DATE=""
@@ -78,6 +93,13 @@ if [ ${#KEYWORDS[@]} -eq 1 ] && echo "${KEYWORDS[0]}" | grep -q ' '; then
   read -ra SPLIT_KW <<< "${KEYWORDS[0]}"
   KEYWORDS=("${SPLIT_KW[@]}")
 fi
+
+# 限制关键词长度，防止资源耗尽
+for i in "${!KEYWORDS[@]}"; do
+  if [ ${#KEYWORDS[$i]} -gt $MAX_INPUT_LEN ]; then
+    KEYWORDS[$i]="${KEYWORDS[$i]:0:$MAX_INPUT_LEN}"
+  fi
+done
 
 source "$SKILL_DIR/lib/common.sh"
 STATE_DIR=$(get_state_dir)
@@ -158,7 +180,9 @@ score_block() {
     local total_kw=$kw_len
     local hit=0
     for kw in "${KEYWORDS[@]}"; do
-      grep -qi --color=never "$kw" "$block_file" && hit=$((hit+1))
+      # 转义关键词防止正则注入
+      local escaped_kw=$(escape_grep "$kw")
+      grep -qi --color=never "$escaped_kw" "$block_file" && hit=$((hit+1))
     done
     [ $hit -eq 0 ] && echo "0" && return
     score=$hit
@@ -237,15 +261,17 @@ format_all() {
   [ ! -f "$file" ] && return
 
   awk '
-    /^## \[EXP-/ { id=$0; area=""; tags=""; created=""; problem="" }
-    /^\*\*Area\*\*:/ { sub(/^\*\*Area\*\*: /,""); area=$0 }
-    /^\*\*Tags\*\*:/ { sub(/^\*\*Tags\*\*: /,""); tags=$0 }
-    /^\*\*Created\*\*:/ { sub(/^\*\*Created\*\*: /,""); created=$0 }
-    /^### 问题$/ { getline; problem=$0 }
-    /^---$/ && id!="" {
+    /^## \[EXP-/ { id=$0; area=""; tags=""; created=""; problem=""; next }
+    /^\*\*Area\*\*:/ { sub(/^\*\*Area\*\*: /,""); area=$0; next }
+    /^\*\*Tags\*\*:/ { sub(/^\*\*Tags\*\*: /,""); tags=$0; next }
+    /^\*\*Created\*\*:/ { sub(/^\*\*Created\*\*: /,""); created=$0; next }
+    /^### 问题$/ { getline; problem=$0; next }
+    /^---/ && id!="" {
       printf "%s\n  Area: %s | Tags: %s | 创建: %s\n  问题: %s\n---\n\n", id, area, tags, created, problem
       id=""
     }
+    # 容错: 忽略无法解析的行，不中断处理
+    { next }
   ' "$file"
 }
 
@@ -270,7 +296,8 @@ search_layered_file() {
 
     local score=0
     for kw in "${KEYWORDS[@]}"; do
-      echo "$line" | grep -qi --color=never "$kw" && score=$((score+1))
+      local escaped_kw=$(escape_grep "$kw")
+      echo "$line" | grep -qi --color=never "$escaped_kw" && score=$((score+1))
     done
 
     if [ $score -gt 0 ]; then
@@ -378,7 +405,9 @@ if [ -n "$FILTER_DOMAIN" ]; then
       echo ""
       echo "─── Domain: ${FILTER_DOMAIN} (experiences.md 中 Area:${FILTER_DOMAIN} 的条目) ───"
       if [ -f "$ERRORS_FILE" ]; then
-        awk -v area="$FILTER_DOMAIN" '
+        # H1 fix: 转义双引号，防止破坏 awk 脚本中的双引号平衡
+        safe_area=$(printf '%s' "$FILTER_DOMAIN" | sed 's/"/\\"/g')
+        awk -v area="$safe_area" '
           BEGIN { in_block=0 }
           /^## \[EXP-/ { id=$0; in_block=1; area_match=0 }
           /^\*\*Area\*\*:/ { sub(/^\*\*Area\*\*: /,""); if ($0 == area) area_match=1 }

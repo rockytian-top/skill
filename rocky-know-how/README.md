@@ -1,165 +1,167 @@
-# 📚 rocky-know-how
+# rocky-know-how v3.0.0
 
-> OpenClaw Learning Knowledge Skill — Search on failure, write after solving, learnings shared across agents
+**经验诀窍自动学习系统 — Experience & Knowledge Auto-Learning System**
 
-[English](./README_EN.md) | 中文
+> 让 AI Agent 从失败中学习，在成功后自动记录，形成完整经验闭环。
 
-## ✨ 功能特性
+[![Version](https://img.shields.io/badge/version-3.0.0-blue)]()
+[![Models Tested](https://img.shields.io/badge/models_tested-deepseek_v4%20%7C%20glm_5.1%20%7C%20minimax_m2.7-green)]()
+[![Code Lines](https://img.shields.io/badge/code-4632_lines-orange)]()
 
-- 🔍 **智能搜索** — 多关键词 AND 匹配 + 相关度评分排序
-- 🏷️ **标签/领域筛选** — `--tag` `--area` 精确过滤
-- 🔄 **自动去重** — 问题文本 + Tags 组合去重
-- 📝 **同步原生记忆** — 写入 memory/*.md，memory_search 可搜
-- 🌙 **Dreaming 整合** — 标记注释，供 Dreaming 阶段分析
-- 📊 **Tag晋升铁律** — 同 Tag ≥3次自动写入 TOOLS.md
-- 📥 **历史导入** — 从 memory/*.md 批量提取教训
-- 🗄️ **自动归档** — 超过30天自动归档，适合 cron
-- 🌐 **跨 agent 共享** — 全局存储，所有 agent 通用
+---
 
-## 🔒 安全保障
+## 📚 简介
 
-| 措施 | 说明 |
-|------|------|
-| 不执行系统命令 | 只读写本地文件 |
-| 无敏感数据收集 | 只存储经验文本 |
-| 无网络请求 | 纯本地操作 |
-| 代码开源可审查 | MIT 许可证 |
-| 路径动态获取 | 不硬编码用户路径 |
+rocky-know-how 是一个为 OpenClaw Agent 设计的**全自动经验诀窍学习系统**。通过 4 事件 Hook 集成，实现了从对话中自动提取经验、LLM 智能判断、三层存储管理的完整闭环。
 
-## 📦 脚本列表
+**核心特性：**
+- 🔄 **全自动闭环** — 压缩时自动提取 → LLM 判断 → 写入经验，零人工干预
+- 🧠 **LLM 双判断** — 先判断是否值得写，再判断新增还是追加
+- 📦 **三层存储** — HOT（始终加载）/ WARM（按需）/ COLD（归档）
+- 🛡️ **五重安全** — 正则注入防护、路径穿越过滤、并发写锁、去重晋升、降级容错
+- 🔌 **全 Provider** — 支持 deepseek / glm / minimax / stepfun（含 OAuth）
+- ✅ **三大模型实测** — deepseek-v4、glm-5.1、minimax-m2.7 全部通过正反向测试
 
-| 脚本 | 说明 |
-|------|------|
-| search.sh | 搜索经验（相关度排序、标签/领域筛选、摘要模式） |
-| record.sh | 写入经验（去重、dry-run、Dreaming标记） |
-| stats.sh | 统计面板（条目数、Area/Tag分布） |
-| promote.sh | Tag晋升检查（≥3次自动写TOOLS.md） |
-| import.sh | 从 memory/*.md 批量导入历史教训 |
-| archive.sh | 归档旧条目（手动/auto模式） |
-| clean.sh | 清理工具（测试条目/旧索引） |
-| install.sh | 安装脚本 |
-| uninstall.sh | 卸载脚本 |
+---
 
-## 🚀 安装
+## 🚀 快速开始
 
-### 架构：一套安装，全团队共享
+### 安装
 
-```
-~/.openclaw/.learnings/          ← 数据和脚本，所有 agent 共用一份
-├── experiences.md               ← 经验数据库
-├── memory.md                    ← HOT 层
-├── domains/                    ← 领域隔离
-└── projects/                   ← 项目隔离
-```
-
-**数据只需安装一次**，所有 agent 共享同一份经验库。
-
-**Hook 配置需要每个 agent 单独做**（如果想让 agent 在对话中自动看到"先搜经验"提醒）。
-
-### ClawHub（推荐）
 ```bash
-openclaw skills install rocky-know-how
-```
-
-### 手动安装
-```bash
-git clone https://github.com/rockytian-top/skill.git
+git clone https://gitee.com/rocky_tian/skill.git
 cd skill/rocky-know-how
 bash scripts/install.sh
 ```
 
-### Hook 自动配置 ✅
+### 核心命令
 
-install.sh 会自动将 hook 路径添加到 `openclaw.json` 的 `extraDirs`，**无需手动配置**。
-
-配置后重启 gateway：
 ```bash
-openclaw gateway restart
-```
+# 搜索经验
+bash scripts/search.sh "关键词"
 
-如需手动配置（不推荐），参考 rocky-know-how/setup.md。
-
-## 📖 用法
-
-### 搜索经验
-```bash
-# 多关键词搜索（相关度排序）
-bash scripts/search.sh "排查" "网站"
-
-# 按标签搜索（AND逻辑）
-bash scripts/search.sh --tag "troubleshooting,vps"
-
-# 按领域搜索
-bash scripts/search.sh --area infra
-
-# 摘要模式
-bash scripts/search.sh --preview "关键词"
+# 写入经验
+bash scripts/record.sh "问题" "踩坑过程" "正确方案" "预防措施" "tag1,tag2" "area"
 
 # 查看全部
 bash scripts/search.sh --all
+
+# 统计面板
+bash scripts/stats.sh
 ```
 
-### 写入经验
-```bash
-# 正常写入
-bash scripts/record.sh "问题" "踩坑过程" "正确方案" "预防措施" "tag1,tag2" "area"
+---
 
-# 预览不写入
-bash scripts/record.sh --dry-run "问题" "踩坑" "方案" "预防" "tags"
-```
+## 🏗️ 架构
 
-### 导入/归档
-```bash
-# 从 memory 导入历史教训
-bash scripts/import.sh --dry-run    # 先预览
-bash scripts/import.sh              # 实际导入
+### 四事件驱动
 
-# 手动归档
-bash scripts/archive.sh --dry-run   # 先预览
-bash scripts/archive.sh             # 实际归档
+| 事件 | 触发时机 | 功能 |
+|------|---------|------|
+| `agent:bootstrap` | AI 启动 | 注入经验提醒到 systemPrompt |
+| `before_compaction` | 压缩前 | 提取 task/tools/errors → 保存 pending/ |
+| `after_compaction` | 压缩后 | **核心：LLM 双判断 → 草稿 → 写入 → 归档** |
+| `before_reset` | 重置前 | 兜底保存 pending |
 
-# 自动归档（适合 cron/heartbeat）
-bash scripts/archive.sh --auto
-```
-
-## 🔄 核心循环
-
-```
-接到任务 → 正常执行
-    ↓
-失败≥2次 → 搜经验诀窍（search.sh）
-    ├── 有答案 → 按答案执行
-    └── 没答案 → 继续尝试直到成功
-    ↓
-成功后 → 写入经验诀窍（record.sh）
-    ↓
-同步到 memory/*.md → memory_search 可搜到
-    ↓
-同Tag≥3次 → 晋升到 TOOLS.md（promote.sh）
-```
-
-## 📂 存储结构
+### 三层存储
 
 ```
 ~/.openclaw/.learnings/
-├── experiences.md          ← 经验数据（全局共享）
-└── archive/                ← 归档目录
-    └── YYYY-MM/            ← 按月归档
+├── experiences.md    ← 主数据（v1 兼容，所有经验）
+├── memory.md         ← HOT 层（≤100行，始终加载）
+├── domains/          ← WARM 层（按领域：infra/code/global...）
+├── projects/         ← WARM 层（按项目）
+├── archive/          ← COLD 层（90天以上归档）
+├── drafts/           ← 自动草稿（LLM 判断后处理）
+└── pending/          ← 待处理会话上下文
 ```
 
-## 🔧 兼容性
+### 全自动闭环流程
 
-- ✅ macOS bash 3.x（不用 `=~`，不用 GNU 扩展）
-- ✅ Node.js 18+（CommonJS，无 TypeScript 依赖）
-- ✅ macOS / Linux
-- ✅ OpenClaw 2026.4.x+
+```
+对话中 → before_compaction
+  ├─ 从 messages 提取 task, tools, errors
+  ├─ 保存到 pending/*.json
+  └─ 自动搜索相关经验注入上下文
+       ↓
+after_compaction（核心）
+  ├─ resolveProviderInfo() → 获取 LLM provider
+  ├─ callLLMJudge() → 值得写吗？(worth=true?)
+  │   └─ Yes → 生成草稿
+  ├─ decideCreateOrAppend() → 新增还是追加？
+  │   ├─ create → record.sh
+  │   └─ append → append-record.sh
+  ├─ runAutoReview() → 后台审核
+  ├─ 归档 pending → pending/archive/
+  └─ 清理临时文件
+```
 
-## 📄 许可证
+---
 
-[MIT License](./LICENSE)
+## 🛡️ 安全机制
 
-## 🔗 链接
+| 机制 | 实现 |
+|------|------|
+| 正则注入防护 | `escape_grep()` sed 转义特殊字符 |
+| 路径穿越过滤 | `replace(/[^a-zA-Z0-9_-]/g, '')` |
+| 并发写锁 | `.write_lock/` 目录原子锁 |
+| Tag 去重晋升 | record.sh 去重 + promote.sh ≥3次/7天 |
+| 降级容错 | LLM → 关键词匹配 → 写入，三级降级 |
 
-- [ClawHub](https://clawhub.ai/skills/rocky-know-how)
-- [GitHub](https://github.com/rockytian-top/openclaw-rocky-skills)
-- [Gitee](https://gitee.com/rocky_tian/skill)
+---
+
+## 📊 代码统计
+
+| 模块 | 行数 |
+|------|-----:|
+| handler.js（核心 Hook） | 1,110 |
+| 17 个脚本 | 3,522 |
+| **总计** | **4,632** |
+
+---
+
+## ✅ 测试验证
+
+### 已测试模型
+
+| 模型 | Provider | 正向测试 | 逆向测试 | 状态 |
+|------|---------|:--------:|:--------:|:----:|
+| deepseek-v4 | deepseek (api-key) | ✅ 通过 | ✅ 144/150 | 已验证 |
+| glm-5.1 | zai (api-key) | ✅ 通过 | ✅ 146/150 | 已验证 |
+| MiniMax-M2.7-highspeed | minimax-portal (OAuth) | ✅ 通过 | ✅ 146/150 | 已验证 |
+
+### 测试覆盖
+
+- ✅ agent:bootstrap → systemPrompt 注入（12→952字符）
+- ✅ before_compaction → pending 保存（task/tools/errors 提取）
+- ✅ after_compaction → LLM 双判断 → 自动写入经验
+- ✅ before_reset → 兜底保存
+- ✅ record.sh 写入 + search.sh 搜索
+- ✅ auto-review.sh 草稿处理 + 归档
+- ✅ compact.sh 压缩检查
+- ✅ promote.sh Tag 晋升
+- ✅ stats.sh 统计面板
+- ✅ 5 种安全机制实地确认
+
+---
+
+## 📈 核心优势
+
+1. **零配置自动学习** — Hook 事件自动捕获经验，无需手动触发
+2. **LLM 双重判断** — 先判断是否值得写，再决定新增还是追加
+3. **三级降级容错** — LLM → 关键词 → 写入，永不丢失数据
+4. **全 Provider 支持** — OpenAI、Anthropic、OAuth（zai/stepfun/minimax）
+5. **生产验证** — 45+ 条真实经验，2.6MB 数据，稳定运行
+6. **安全第一** — 5 种安全机制（正则注入、路径穿越、写锁等）
+
+---
+
+## 📦 仓库
+
+- **Gitee**: https://gitee.com/rocky_tian/skill
+- **GitHub**: https://github.com/rocky-tian/skill
+- **ClawHub**: https://clawhub.ai/skills/rocky-know-how
+
+---
+
+_版本: 3.0.0 | 测试日期: 2026-04-24 | 许可: MIT_

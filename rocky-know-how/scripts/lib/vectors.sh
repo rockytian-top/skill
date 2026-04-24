@@ -1,9 +1,9 @@
 #!/bin/bash
-# 向量搜索工具库 v2.7.1
+# 向量搜索工具库 v2.7.0
 # 依赖 LM Studio embedding API
 
 VECTOR_API="${VECTOR_API:-http://localhost:1234/v1/embeddings}"
-VECTOR_MODEL="${VECTOR_MODEL:-text-embedding-nomic-embed-text-v1.5}"
+VECTOR_MODEL="${VECTOR_MODEL:-text-embedding-qwen3-embedding-0.6b}"
 VECTOR_DIR=""
 
 # 初始化：设置 VECTOR_DIR 并创建目录
@@ -33,9 +33,11 @@ vector_embed() {
   [ -z "$text" ] && return 1
   
   # 用 python3 解析 JSON（macOS/Linux 都有），带异常处理
+  # 使用 python3 json.dumps 避免 shell 注入
+  local json_payload=$(python3 -c 'import json,sys; print(json.dumps(sys.stdin.read().strip()))' <<< "$text")
   curl -s --max-time 10 "$VECTOR_API" \
     -H "Content-Type: application/json" \
-    -d "{\"model\":\"$VECTOR_MODEL\",\"input\":$(echo "$text" | python3 -c 'import json,sys; print(json.dumps(sys.stdin.read().strip()))')}" \
+    -d "{\"model\":\"$VECTOR_MODEL\",\"input\":$json_payload}" \
     2>/dev/null | python3 -c '
 import json, sys
 try:
@@ -107,7 +109,7 @@ print(json.dumps(d, ensure_ascii=False))
     fi
   done
   echo "$entry" >> "$VECTOR_DIR/index.jsonl"
-  rm -rf "$lock_dir"
+  rmdir "$lock_dir"
 }
 
 # 搜索：输入文本 → 生成向量 → 遍历 index.jsonl 计算 cosine → 返回 topN
@@ -152,6 +154,11 @@ for score, eid, text, area in results[:top_n]:
 # P2 fix: 通过 sys.argv[1:4] 传递参数，避开 heredoc 注入风险
 vector_reindex_all() {
   local errors_file="${1:-$HOME/.openclaw/.learnings/experiences.md}"
+  # 安全: 验证路径不包含 .. 穿越
+  if [[ "$errors_file" == *../* ]]; then
+    echo "❌ 路径不允许 ../ 穿越" >&2
+    return 1
+  fi
   [ -z "$VECTOR_DIR" ] && vector_init
   [ ! -f "$errors_file" ] && return 1
 

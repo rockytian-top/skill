@@ -1,140 +1,134 @@
-# 📚 rocky-know-how
+# rocky-know-how v3.0.0
 
-> OpenClaw experience & know-how skill — auto-search on repeated failures, auto-record on success, shared across all agents
+**Experience & Knowledge Auto-Learning System for OpenClaw Agents**
 
-[中文](./README.md) | English
+> Enable AI Agents to learn from failures and automatically record successes, forming a complete experience closed-loop.
 
-## ✨ Features
+[![Version](https://img.shields.io/badge/version-3.0.0-blue)]()
+[![Models Tested](https://img.shields.io/badge/models_tested-deepseek_v4%20%7C%20glm_5.1%20%7C%20minimax_m2.7-green)]()
+[![Code Lines](https://img.shields.io/badge/code-4632_lines-orange)]()
 
-- 🔍 **Smart Search** — Multi-keyword AND matching + relevance scoring
-- 🏷️ **Tag/Area Filter** — `--tag` and `--area` for precise filtering
-- 🔄 **Auto Dedup** — Question text + Tags combination deduplication
-- 📝 **Native Memory Sync** — Writes to memory/*.md, searchable via memory_search
-- 🌙 **Dreaming Integration** — Annotated markers for Dreaming phase analysis
-- 📊 **Tag Promotion** — Same Tag ≥3 times auto-writes to TOOLS.md
-- 📥 **Historical Import** — Batch extract lessons from memory/*.md
-- 🗄️ **Auto Archive** — Auto-archive entries older than 30 days
-- 🌐 **Cross-Agent Sharing** — Global storage, all agents share the same data
+---
 
-## 🔒 Security
+## Overview
 
-| Measure | Description |
-|---------|-------------|
-| No system commands | Only reads/writes local files |
-| No sensitive data | Only stores experience text |
-| No network requests | Pure local operations |
-| Open source auditable | MIT License |
-| Dynamic paths | No hardcoded user paths |
+rocky-know-how is a **fully automatic experience learning system** designed for OpenClaw Agents. Through 4-event Hook integration, it achieves a complete closed-loop: automatic experience extraction from conversations → LLM intelligent judgment → triple-layer storage management.
 
-## 📦 Scripts
+**Key Features:**
+- Full Auto-Closed-Loop — Auto-extract on compaction → LLM judge → write experience, zero manual intervention
+- LLM Dual-Judgment — First judges if worth saving, then decides create vs append
+- Triple-Layer Storage — HOT (always loaded) / WARM (on-demand) / COLD (archive)
+- 5-Layer Security — Regex injection prevention, path traversal filtering, concurrent write lock, dedup promotion, degradation fallback
+- Multi-Provider — Supports deepseek / glm / minimax / stepfun (including OAuth)
+- 3-Model Verified — deepseek-v4, glm-5.1, minimax-m2.7 all passed forward & reverse testing
 
-| Script | Description |
-|--------|-------------|
-| search.sh | Search experiences (relevance scoring, tag/area filter, preview mode) |
-| record.sh | Record experience (dedup, dry-run, Dreaming markers) |
-| stats.sh | Statistics dashboard (entry count, Area/Tag distribution) |
-| promote.sh | Tag promotion check (≥3 times auto-writes TOOLS.md) |
-| import.sh | Batch import historical lessons from memory/*.md |
-| archive.sh | Archive old entries (manual/auto mode) |
-| clean.sh | Cleanup tool (test entries/old index) |
-| install.sh | Install script |
-| uninstall.sh | Uninstall script |
+---
 
-## 🚀 Installation
+## Quick Start
 
-### ClawHub (Recommended)
+### Install
+
 ```bash
-openclaw skills install rocky-know-how
-```
-
-### Manual
-```bash
-git clone https://github.com/rockytian-top/openclaw-rocky-skills.git
-cd openclaw-rocky-skills/rocky-know-how
+git clone https://gitee.com/rocky_tian/skill.git
+cd skill/rocky-know-how
 bash scripts/install.sh
 ```
 
-## 📖 Usage
+### Core Commands
 
-### Search
 ```bash
-# Multi-keyword search (relevance scoring)
-bash scripts/search.sh "debug" "website"
+# Search experiences
+bash scripts/search.sh "keyword"
 
-# By tags (AND logic)
-bash scripts/search.sh --tag "troubleshooting,vps"
+# Write experience
+bash scripts/record.sh "problem" "pitfall" "solution" "prevention" "tag1,tag2" "area"
 
-# By area
-bash scripts/search.sh --area infra
-
-# Preview mode
-bash scripts/search.sh --preview "keyword"
-
-# List all
+# View all
 bash scripts/search.sh --all
+
+# Statistics dashboard
+bash scripts/stats.sh
 ```
 
-### Record
-```bash
-# Normal record
-bash scripts/record.sh "Problem" "What went wrong" "Solution" "Prevention" "tag1,tag2" "area"
+---
 
-# Dry-run (preview only)
-bash scripts/record.sh --dry-run "Problem" "Mistakes" "Solution" "Prevention" "tags"
-```
+## Architecture
 
-### Import / Archive
-```bash
-# Import from memory
-bash scripts/import.sh --dry-run    # Preview first
-bash scripts/import.sh              # Actual import
+### 4-Event Driven
 
-# Manual archive
-bash scripts/archive.sh --dry-run   # Preview
-bash scripts/archive.sh             # Archive
+| Event | Trigger | Function |
+|-------|---------|----------|
+| `agent:bootstrap` | Agent startup | Inject experience reminder into systemPrompt |
+| `before_compaction` | Before compression | Extract task/tools/errors → save to pending/ |
+| `after_compaction` | After compression | Core: LLM dual-judge → draft → write → archive |
+| `before_reset` | Before session reset | Fallback save pending context |
 
-# Auto archive (for cron/heartbeat)
-bash scripts/archive.sh --auto
-```
-
-## 🔄 Core Loop
-
-```
-Task received → Execute normally
-    ↓
-Failed ≥2 times → Search experiences (search.sh)
-    ├── Found → Follow the solution
-    └── Not found → Keep trying until success
-    ↓
-Success → Record experience (record.sh)
-    ↓
-Sync to memory/*.md → searchable via memory_search
-    ↓
-Same Tag ≥3 times → Promote to TOOLS.md (promote.sh)
-```
-
-## 📂 Storage
+### Triple-Layer Storage
 
 ```
 ~/.openclaw/.learnings/
-├── experiences.md          ← Experience data (globally shared)
-└── archive/                ← Archive directory
-    └── YYYY-MM/            ← Monthly archives
+├── experiences.md    ← Main data (v1 compatible)
+├── memory.md         ← HOT layer (≤100 lines, always loaded)
+├── domains/          ← WARM layer (by area: infra, code, global...)
+├── projects/         ← WARM layer (by project)
+├── archive/          ← COLD layer (90+ days)
+├── drafts/           ← Auto-generated drafts (LLM judged)
+└── pending/          ← Session context (before processing)
 ```
 
-## 🔧 Compatibility
+---
 
-- ✅ macOS bash 3.x (no `=~`, no GNU extensions)
-- ✅ Node.js 18+ (CommonJS, no TypeScript dependency)
-- ✅ macOS / Linux
-- ✅ OpenClaw 2026.4.x+
+## Safety & Security
 
-## 📄 License
+| Mechanism | Implementation |
+|-----------|---------------|
+| Regex injection prevention | `escape_grep()` sed escaping |
+| Path traversal filtering | `replace(/[^a-zA-Z0-9_-]/g, '')` |
+| Concurrent write lock | `.write_lock/` directory atomic lock |
+| Tag dedup promotion | record.sh dedup + promote.sh ≥3x/7days threshold |
+| Graceful degradation | LLM → keyword → write, triple fallback chain |
 
-[MIT License](./LICENSE)
+---
 
-## 🔗 Links
+## Code Statistics
 
-- [ClawHub](https://clawhub.ai/skills/rocky-know-how)
-- [GitHub](https://github.com/rockytian-top/openclaw-rocky-skills)
-- [Gitee](https://gitee.com/rocky_tian/skill)
+| Module | Lines |
+|--------|------:|
+| handler.js (Core Hook) | 1,110 |
+| 17 Scripts | 3,522 |
+| **Total** | **4,632** |
+
+---
+
+## Verified Testing
+
+### Models Tested
+
+| Model | Provider | Forward Test | Reverse Test | Status |
+|-------|----------|:------------:|:------------:|:------:|
+| deepseek-v4 | deepseek (api-key) | ✅ Pass | ✅ 144/150 | Verified |
+| glm-5.1 | zai (api-key) | ✅ Pass | ✅ 146/150 | Verified |
+| MiniMax-M2.7-highspeed | minimax-portal (OAuth) | ✅ Pass | ✅ 146/150 | Verified |
+
+---
+
+## Key Advantages
+
+1. **Zero-config auto-learning** — Hook events automatically capture experience, no manual trigger needed
+2. **LLM dual-judgment** — First judges if worth saving, then decides create vs append
+3. **Triple degradation** — LLM → keyword → write, never loses data
+4. **Multi-provider** — Supports OpenAI, Anthropic, OAuth providers (zai/stepfun/minimax)
+5. **Production proven** — 45+ real experiences, 2.6MB data, stable operation
+6. **Safety first** — 5 security mechanisms (regex injection, path traversal, write lock, etc.)
+
+---
+
+## Repositories
+
+- **Gitee**: https://gitee.com/rocky_tian/skill
+- **GitHub**: https://github.com/rocky-tian/skill
+- **ClawHub**: https://clawhub.ai/skills/rocky-know-how
+
+---
+
+_Version: 3.0.0 | Tested: 2026-04-24 | License: MIT_
