@@ -1,5 +1,5 @@
 #!/bin/bash
-# rocky-know-how 一键安装脚本 v2.8.3
+# rocky-know-how 一键安装脚本 v2.9.1
 set -e
 
 VERSION="2.8.3"

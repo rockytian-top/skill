@@ -1,4 +1,4 @@
-# 🏗️ rocky-know-how 完整架构设计 (v2.8.8)
+# 🏗️ rocky-know-how 完整架构设计 (v2.9.1)
 
 > 技能插件的所有流程架构、组件关系、数据流、部署拓扑总览
 
@@ -658,6 +658,6 @@ console.log(`[rocky-know-how] event=${event.type} sessionKey=${sessionKey}`);
 
 ---
 
-**最后更新**: 2026-04-24 v2.8.8  
+**最后更新**: 2026-04-24 v2.9.1  
 **维护人**: 大颖 (fs-daying)  
 **状态**: ✅ 生产就绪，架构稳定

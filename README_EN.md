@@ -1,6 +1,6 @@
 # 📚 rocky-know-how
 
-> OpenClaw Learning Knowledge Skill v2.8.14  
+> OpenClaw Learning Knowledge Skill v2.9.1  
 > Core: **Search on failure, write after solving, learnings shared across agents**
 
 [English](./README_EN.md) | [Complete Guide](./SKILL-GUIDE.md) | [Architecture](./ARCHITECTURE.md)
@@ -9,7 +9,7 @@
 
 ## 🎯 Core Innovations
 
-### 1. 🤖 Hook Fully Automatic Draft Review (v2.8.14 NEW)
+### 1. 🤖 Hook Fully Automatic Draft Review (v2.9.1 NEW)
 
 **before_reset Hook automatically triggers**:
 ```
@@ -133,12 +133,12 @@ bash ~/.openclaw/skills/rocky-know-how/scripts/record.sh \
 
 | Version | Date | Highlights |
 |---------|------|------------|
-| **v2.8.14** | 2026-04-24 | 🤖 **Hook Fully Automatic Integration** |
-| v2.8.13 | 2026-04-24 | Root docs update |
-| v2.8.12 | 2026-04-24 | Full auto test verified |
-| v2.8.11 | 2026-04-24 | SKILL-GUIDE.md complete guide |
-| v2.8.10 | 2026-04-24 | auto-review.sh auto review |
-| v2.8.9 | 2026-04-24 | ARCHITECTURE.md architecture design |
+| **v2.9.1** | 2026-04-24 | 🤖 **Hook Fully Automatic Integration** |
+| v2.9.1 | 2026-04-24 | Root docs update |
+| v2.9.1 | 2026-04-24 | Full auto test verified |
+| v2.9.1 | 2026-04-24 | SKILL-GUIDE.md complete guide |
+| v2.9.1 | 2026-04-24 | auto-review.sh auto review |
+| v2.9.1 | 2026-04-24 | ARCHITECTURE.md architecture design |
 
 ---
 
@@ -150,4 +150,4 @@ bash ~/.openclaw/skills/rocky-know-how/scripts/record.sh \
 
 ---
 
-**Maintainer**: 大颖 (fs-daying) | **Version**: v2.8.14
+**Maintainer**: 大颖 (fs-daying) | **Version**: v2.9.1

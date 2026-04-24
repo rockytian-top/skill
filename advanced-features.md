@@ -1,4 +1,4 @@
-# 🚀 高级特性：向量搜索与自动降级 (v2.8.6)
+# 🚀 高级特性：向量搜索与自动降级 (v2.9.1)
 
 > rocky-know-how 的三大核心创新功能详解
 
@@ -766,6 +766,6 @@ bash ~/.openclaw/skills/rocky-know-how/scripts/clean.sh --rebuild-vectors
 
 ---
 
-**最后更新**: 2026-04-24 v2.8.6  
+**最后更新**: 2026-04-24 v2.9.1  
 **维护**: rocky-know-how 团队  
 **状态**: ✅ 生产就绪

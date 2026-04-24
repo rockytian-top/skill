@@ -1,5 +1,5 @@
 #!/bin/bash
-# rocky-know-how 清理工具 v2.8.3
+# rocky-know-how 清理工具 v2.9.1
 # 用法: clean.sh [--test] [--old] [--reindex]
 
 SCRIPTS_DIR="$(cd "$(dirname "$0")" && pwd)"
@@ -140,7 +140,7 @@ case "$MODE" in
     ;;
 
   --reindex)
-    echo "=== 重新编号 v2.8.3 ==="
+    echo "=== 重新编号 v2.9.1 ==="
     # P4 fix: 使用 mktemp 替代固定路径
     TEMP_FILE=$(mktemp /tmp/rocky-know-how.XXXXXX)
     TODAY=$(date +%Y%m%d)

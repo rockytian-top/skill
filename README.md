@@ -1,6 +1,6 @@
 # 📚 rocky-know-how
 
-> OpenClaw 经验积累技能 v2.8.14  
+> OpenClaw 经验积累技能 v2.9.1  
 > 核心理念：**搜索失败时，记录解决后经验，团队共享复用**
 
 [English](./README_EN.md) | [完整指南](./SKILL-GUIDE.md) | [架构设计](./ARCHITECTURE.md)
@@ -9,7 +9,7 @@
 
 ## 🎯 核心创新（重点突出）
 
-### 1. 🤖 Hook 全自动草稿审核（v2.8.14 新增）
+### 1. 🤖 Hook 全自动草稿审核（v2.9.1 新增）
 
 **before_reset Hook 触发后自动完成**：
 ```
@@ -133,12 +133,12 @@ bash ~/.openclaw/skills/rocky-know-how/scripts/record.sh \
 
 | 版本 | 日期 | 亮点 |
 |------|------|------|
-| **v2.8.14** | 2026-04-24 | 🤖 **Hook 全自动集成**（核心创新） |
-| v2.8.13 | 2026-04-24 | 根目录文档更新 |
-| v2.8.12 | 2026-04-24 | 全自动测试验证通过 |
-| v2.8.11 | 2026-04-24 | SKILL-GUIDE.md 完整指南 |
-| v2.8.10 | 2026-04-24 | auto-review.sh 全自动审核 |
-| v2.8.9 | 2026-04-24 | ARCHITECTURE.md 架构设计 |
+| **v2.9.1** | 2026-04-24 | 🤖 **Hook 全自动集成**（核心创新） |
+| v2.9.1 | 2026-04-24 | 根目录文档更新 |
+| v2.9.1 | 2026-04-24 | 全自动测试验证通过 |
+| v2.9.1 | 2026-04-24 | SKILL-GUIDE.md 完整指南 |
+| v2.9.1 | 2026-04-24 | auto-review.sh 全自动审核 |
+| v2.9.1 | 2026-04-24 | ARCHITECTURE.md 架构设计 |
 
 ---
 
@@ -150,4 +150,4 @@ bash ~/.openclaw/skills/rocky-know-how/scripts/record.sh \
 
 ---
 
-**维护人**: 大颖 (fs-daying) | **版本**: v2.8.14
+**维护人**: 大颖 (fs-daying) | **版本**: v2.9.1

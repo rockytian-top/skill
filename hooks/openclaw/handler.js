@@ -1,13 +1,12 @@
 /**
  * rocky-know-how Hook for OpenClaw
  *
- * v2.8.19 - 草稿到正式：AI优化增强
- * - agent/bootstrap: 启动时注入经验诀窍提醒
- * - before_compaction: 对话内容 → 模型判断 → 生成草稿
- * - after_compaction: 草稿内容 → AI优化增强 → 写入正式经验
- * - before_reset: 对话内容 → 模型判断 → 生成草稿 → 写入正式经验
+ * v2.9.1 - 直接处理模式
+ * - before_compaction: 保存内容到 pending/ 待处理队列
+ * - after_compaction: 直接调用 LLM 判断 + 处理
+ * - 不触发新 agent,避免队列等待
  *
- * @version 2.8.19
+ * @version 2.9.1
  */
 
 const { existsSync, readFileSync, writeFileSync, appendFileSync, unlinkSync, mkdirSync } = require('fs');
@@ -32,7 +31,7 @@ function getWorkspace(sessionKey, env) {
 /**
  * 动态定位 scripts 目录
  */
-function findScriptsDir(sessionKey, env) {
+function findScriptsDir(sessionKey, env, requiredFile = 'search.sh') {
   const openclawDir = env.OPENCLAW_STATE_DIR || `${env.HOME || '~'}/.openclaw`;
   const workspace = getWorkspace(sessionKey, env);
   // 安全: 验证 sessionKey 提取的 agentId 不含路径穿越字符
@@ -47,7 +46,7 @@ function findScriptsDir(sessionKey, env) {
     join(openclawDir, 'shared-skills', 'rocky-know-how', 'scripts'),
   ];
   for (const dir of candidates) {
-    if (dir && existsSync(join(dir, 'search.sh'))) return dir;
+    if (dir && existsSync(join(dir, requiredFile))) return dir;
   }
   // fallback: 使用 openclawDir 而非硬编码 home
   return join(openclawDir, 'skills', 'rocky-know-how', 'scripts');
@@ -66,12 +65,17 @@ function getLearningsDir(env) {
  */
 function runAutoReview(scriptsDir, learningsDir) {
   try {
-    const autoReviewScript = join(scriptsDir, 'auto-review.sh');
+    // 优先使用全局目录的 auto-review.sh
+    const globalScriptsDir = '/Users/rocky/.openclaw/skills/rocky-know-how/scripts';
+    const autoReviewScript = existsSync(join(globalScriptsDir, 'auto-review.sh'))
+      ? join(globalScriptsDir, 'auto-review.sh')
+      : join(scriptsDir, 'auto-review.sh');
+
     if (!existsSync(autoReviewScript)) {
       console.log('[rocky-know-how] auto-review.sh not found, skipping');
       return;
     }
-    
+
     // 执行 auto-review.sh
     execSync(`bash "${autoReviewScript}"`, {
       cwd: learningsDir,
@@ -91,70 +95,76 @@ function runAutoReview(scriptsDir, learningsDir) {
  * @returns {object} { worth: boolean, reason: string, summary?: string, tags?: string[] }
  */
 function callLLMJudge(content, type) {
-  // 模型 API 地址 (ZAI/GLM-4-Flash)
-  const apiUrl = process.env.LLM_API_URL || 'https://open.bigmodel.cn/api/coding/paas/v4/chat/completions';
-  const model = process.env.LLM_MODEL || 'glm-4-flash';
-  
+  // 从 openclaw.json 读取 zai provider 配置
+  const openclawConfig = JSON.parse(readFileSync(join(process.env.HOME || '~', '.openclaw', 'openclaw.json'), 'utf8'));
+  const zaiProvider = openclawConfig?.models?.providers?.zai;
+
+  if (!zaiProvider?.baseUrl) {
+    console.log('[rocky-know-how] callLLMJudge: no zai provider configured, skipping');
+    return { worth: false, reason: '无模型配置' };
+  }
+
+  const apiUrl = `${zaiProvider.baseUrl}/chat/completions`;
+  const model = zaiProvider.model || '';
+  const apiKey = zaiProvider.apiKey || '';
+
   let systemPrompt, userPrompt;
-  
+
   if (type === 'draft') {
     systemPrompt = `你是一个经验诀窍判断助手。判断以下对话内容是否值得写入草稿经验。
 
-判断标准：
+判断标准:
 - 有实际操作(工具调用) + 有问题或解决方案 → worth
 - 只有闲聊、无关内容 → not worth
 
-回复格式（仅输出JSON，不要其他内容）：
+回复格式(仅输出JSON,不要其他内容):
 {
   "worth": true或false,
-  "reason": "判断理由（20字内）",
-  "summary": "提取的问题/解决方案摘要（50字内）",
+  "reason": "判断理由(20字内)",
+  "summary": "提取的问题/解决方案摘要(50字内)",
   "tags": ["tag1", "tag2"]
 }`;
-    userPrompt = `对话内容：
+    userPrompt = `对话内容:
 ${content}`;
   } else {
     systemPrompt = `你是一个经验诀窍判断助手。判断并优化以下草稿内容。
 
-任务：
+任务:
 1. 判断草稿是否值得写入正式经验
-2. 如果值得，优化和增强解决方案，使其更完整、更实用
+2. 如果值得,优化和增强解决方案,使其更完整、更实用
 
-判断标准：
+判断标准:
 - 有具体问题 + 可优化 → worth
 - 草稿质量低、重复、不完整 → not worth
 
-优化要求：
+优化要求:
 - 补充遗漏的关键步骤
 - 修正不准确的描述
 - 增加预防措施和最佳实践
 - 使解决方案可直接复用
 
-回复格式（仅输出JSON，不要其他内容）：
+回复格式(仅输出JSON,不要其他内容):
 {
   "worth": true或false,
-  "reason": "判断理由（20字内）",
-  "solution": "优化后的完整解决方案（如worth=true则必填）",
-  "prevention": "预防措施和最佳实践（如worth=true则必填）"
+  "reason": "判断理由(20字内)",
+  "solution": "优化后的完整解决方案(如worth=true则必填)",
+  "prevention": "预防措施和最佳实践(如worth=true则必填)"
 }`;
-    userPrompt = `草稿内容：
+    userPrompt = `草稿内容:
 ${content}`;
   }
-  
+
   try {
-    // 获取 API Key
-    const apiKey = process.env.LLM_API_KEY || 'f0478a9dc1554fbe84b794e9528c6900.elAEl9DP520WLtaA';
-    
     const payload = {
-      model: model,
       messages: [
         { role: 'system', content: systemPrompt },
         { role: 'user', content: userPrompt }
       ],
       temperature: 0.1,
-      max_tokens: 500
+      max_tokens: 800
     };
-    
+    if (model) payload.model = model;
+
     const result = execSync(`curl -s -X POST "${apiUrl}" \
       -H "Content-Type: application/json" \
       -H "Authorization: Bearer ${apiKey}" \
@@ -163,10 +173,10 @@ ${content}`;
       encoding: 'utf8',
       timeout: 35000
     });
-    
+
     const parsed = JSON.parse(result);
     const assistantMsg = parsed.choices?.[0]?.message?.content || '';
-    
+
     // 解析 JSON 响应
     const jsonMatch = assistantMsg.match(/\{[\s\S]*\}/);
     if (jsonMatch) {
@@ -175,25 +185,25 @@ ${content}`;
   } catch (e) {
     console.log(`[rocky-know-how] LLM judge failed: ${e.message}`);
   }
-  
-  // 默认返回不worth，避免误写
-  return { worth: false, reason: 'LLM调用失败，默认不写入' };
+
+  // 默认返回不worth,避免误写
+  return { worth: false, reason: 'LLM调用失败,默认不写入' };
 }
 
 /**
- * 写入草稿文件的通用函数（用于 before_compaction 模型判断后）
+ * 写入草稿文件的通用函数(用于 before_compaction 模型判断后)
  */
 function writeDraftWithJudge(learningsDir, sessionKey, problem, tried, tags) {
   const draftsDir = join(learningsDir, 'drafts');
-  
+
   if (!existsSync(draftsDir)) {
     mkdirSync(draftsDir, { recursive: true });
   }
-  
+
   const timestamp = Date.now();
   const draftId = `draft-${timestamp}-${sessionKey.replace(/[^a-zA-Z0-9]/g, '')}`;
   const draftFile = join(draftsDir, `${draftId}.json`);
-  
+
   const draft = {
     id: draftId,
     createdAt: new Date().toISOString(),
@@ -205,7 +215,7 @@ function writeDraftWithJudge(learningsDir, sessionKey, problem, tried, tags) {
     area: inferArea(problem),
     status: 'pending_review'
   };
-  
+
   try {
     writeFileSync(draftFile, JSON.stringify(draft, null, 2), 'utf8');
     console.log(`[rocky-know-how] Draft generated: ${draftId}`);
@@ -230,34 +240,34 @@ function inferArea(task) {
 }
 
 /**
- * 生成提醒文本（用于注入 systemPrompt）
+ * 生成提醒文本(用于注入 systemPrompt)
  */
 function generateReminder(scriptsDir) {
   return `
 ## 📚 经验诀窍提醒 (rocky-know-how) v2.8.3
 
-你有一个经验诀窍技能。使用规则：
+你有一个经验诀窍技能。使用规则:
 
-**失败≥2次时** → 执行搜经验诀窍：
+**失败≥2次时** → 执行搜经验诀窍:
 \`\`\`bash
 bash ${scriptsDir}/search.sh "关键词1" "关键词2"
 \`\`\`
-命中 → 读"正确方案"和"预防"，按答案执行。
+命中 → 读"正确方案"和"预防",按答案执行。
 没命中 → 继续自己排查。
 
-**失败≥2次后成功** → 执行写入经验诀窍：
+**失败≥2次后成功** → 执行写入经验诀窍:
 \`\`\`bash
 bash ${scriptsDir}/record.sh "问题一句话" "踩坑过程" "正确方案" "预防措施" "tag1,tag2" "area"
 \`\`\`
 area 可选: frontend|backend|infra|tests|docs|config (默认: infra)
 
-**其他命令**：
-- \`${scriptsDir}/search.sh --all\` — 查看全部
-- \`${scriptsDir}/search.sh --preview "关键词"\` — 摘要模式
-- \`${scriptsDir}/stats.sh\` — 统计面板
-- \`${scriptsDir}/promote.sh\` — Tag晋升检查
+**其他命令**:
+- \`${scriptsDir}/search.sh --all\` - 查看全部
+- \`${scriptsDir}/search.sh --preview "关键词"\` - 摘要模式
+- \`${scriptsDir}/stats.sh\` - 统计面板
+- \`${scriptsDir}/promote.sh\` - Tag晋升检查
 
-**重要**: 经验诀窍存储在 ~/.openclaw/.learnings/（全局共享），所有 agent 通用。
+**重要**: 经验诀窍存储在 ~/.openclaw/.learnings/(全局共享),所有 agent 通用。
 `;
 }
 
@@ -266,23 +276,23 @@ area 可选: frontend|backend|infra|tests|docs|config (默认: infra)
  */
 function extractContextFromMessages(messages) {
   if (!Array.isArray(messages)) return { task: '', tools: [], errors: [] };
-  
+
   const taskParts = [];
   const errors = [];
   const tools = new Set();
-  
+
   for (const msg of messages) {
     if (!msg || typeof msg !== 'object') continue;
-    
+
     // 提取 user message 作为任务线索
     if (msg.role === 'user' && msg.content) {
-      const content = typeof msg.content === 'string' ? msg.content : 
+      const content = typeof msg.content === 'string' ? msg.content :
         (Array.isArray(msg.content) ? msg.content.map(c => c.text || c.content || '').join(' ') : '');
       if (content && content.length < 200) {
         taskParts.push(content.slice(0, 100));
       }
     }
-    
+
     // 提取 tool_use 中的工具名称
     if (msg.role === 'assistant' && Array.isArray(msg.content)) {
       for (const block of msg.content) {
@@ -291,17 +301,17 @@ function extractContextFromMessages(messages) {
         }
       }
     }
-    
+
     // 提取 tool result 中的错误
     if (msg.role === 'tool' && msg.content) {
-      const content = typeof msg.content === 'string' ? msg.content : 
+      const content = typeof msg.content === 'string' ? msg.content :
         (Array.isArray(msg.content) ? msg.content.map(c => c.text || '').join(' ') : '');
       if (content && (content.includes('error') || content.includes('Error') || content.includes('failed'))) {
         errors.push(content.slice(0, 150));
       }
     }
   }
-  
+
   return {
     task: taskParts.slice(-3).join(' | '),
     tools: Array.from(tools),
@@ -316,7 +326,7 @@ function autoSearch(scriptsDir, messages) {
   try {
     const searchScript = join(scriptsDir, 'search.sh');
     if (!existsSync(searchScript)) return null;
-    
+
     // 从 messages 提取关键词
     const keywords = [];
     for (const msg of messages) {
@@ -327,19 +337,19 @@ function autoSearch(scriptsDir, messages) {
         keywords.push(...words.filter(w => w.length > 3));
       }
     }
-    
+
     if (keywords.length === 0) return null;
-    
-    // 去重，取前3个关键词
+
+    // 去重,取前3个关键词
     const unique = [...new Set(keywords)].slice(0, 3);
     const query = unique.join(' ');
-    
+
     // 执行搜索
     const result = execSync(`bash "${searchScript}" ${query} 2>/dev/null | head -50`, {
       encoding: 'utf8',
       timeout: 10000
     });
-    
+
     if (result && result.trim()) {
       return `\n\n## 🔍 自动搜索相关经验\n${result}\n`;
     }
@@ -350,14 +360,97 @@ function autoSearch(scriptsDir, messages) {
 }
 
 /**
- * 保存 compaction 前状态到临时文件
+ * 保存待处理内容到 pending/ 目录
+ */
+function savePendingLearnings(sessionKey, env, messages) {
+  const learningsDir = getLearningsDir(env);
+  const pendingDir = join(learningsDir, 'pending');
+
+  if (!existsSync(pendingDir)) {
+    mkdirSync(pendingDir, { recursive: true });
+  }
+
+  const { task, tools, errors } = extractContextFromMessages(messages);
+
+  const pendingItem = {
+    id: `pending-${Date.now()}`,
+    sessionKey,
+    savedAt: new Date().toISOString(),
+    task,
+    tools,
+    errors,
+    messageCount: Array.isArray(messages) ? messages.length : 0,
+    status: 'pending'
+  };
+
+  const pendingFile = join(pendingDir, `${pendingItem.id}.json`);
+
+  try {
+    writeFileSync(pendingFile, JSON.stringify(pendingItem, null, 2), 'utf8');
+    console.log(`[rocky-know-how] Saved pending learnings: ${pendingItem.id}`);
+    return pendingItem.id;
+  } catch (e) {
+    console.log(`[rocky-know-how] Failed to save pending learnings: ${e.message}`);
+    return null;
+  }
+}
+
+/**
+ * 处理单个待处理项:LLM判断 + 生成草稿/归档
+ */
+function processPendingItem(pendingFile, scriptsDir, learningsDir) {
+  try {
+    const content = readFileSync(pendingFile, 'utf8');
+    const pending = JSON.parse(content);
+
+    console.log(`[rocky-know-how] Processing pending: ${pending.id}`);
+
+    // 构建判断内容
+    const summary = `任务: ${pending.task || '无'}
+工具: ${(pending.tools || []).join(', ') || '无'}
+错误: ${(pending.errors || []).join('; ') || '无'}`;
+
+    // LLM 判断是否值得写入
+    const judgeResult = callLLMJudge(summary, 'draft');
+    console.log(`[rocky-know-how] LLM judge: worth=${judgeResult.worth}, reason=${judgeResult.reason}`);
+
+    if (judgeResult.worth) {
+      // 生成草稿
+      const problem = judgeResult.summary || pending.task || '会话总结';
+      const draftId = writeDraftWithJudge(learningsDir, `pending:${pending.id}`, problem, (pending.errors || []).join('; ') || '无', judgeResult.tags || pending.tools || []);
+
+      if (draftId) {
+        // 运行 auto-review 写入正式经验
+        console.log(`[rocky-know-how] Running auto-review for draft: ${draftId}`);
+        runAutoReview(scriptsDir, learningsDir);
+      }
+    } else {
+      console.log(`[rocky-know-how] Pending ${pending.id} not worth saving, archiving`);
+      // 归档到 pending/archive/
+      const archiveDir = join(learningsDir, 'pending', 'archive');
+      if (!existsSync(archiveDir)) {
+        mkdirSync(archiveDir, { recursive: true });
+      }
+      const archiveFile = join(archiveDir, `${pending.id}.json`);
+      require('fs').renameSync(pendingFile, archiveFile);
+    }
+
+    return true;
+  } catch (e) {
+    console.log(`[rocky-know-how] Failed to process pending: ${e.message}`);
+    return false;
+  }
+}
+
+/**
+ * 保存 compaction 前状态到临时文件(兼容旧逻辑)
  */
 function saveCompactionState(sessionKey, env, messages) {
   const learningsDir = getLearningsDir(env);
   const stateFile = join(learningsDir, '.compaction-state.tmp');
-  
+
   const { task, tools, errors } = extractContextFromMessages(messages);
-  
+
   const state = {
     sessionKey,
     savedAt: new Date().toISOString(),
@@ -366,11 +459,11 @@ function saveCompactionState(sessionKey, env, messages) {
     errors,
     messageCount: Array.isArray(messages) ? messages.length : 0
   };
-  
+
   try {
     writeFileSync(stateFile, JSON.stringify(state, null, 2), 'utf8');
   } catch (e) {
-    // 静默失败，不影响主流程
+    // 静默失败,不影响主流程
   }
 }
 
@@ -381,10 +474,10 @@ function recordSessionSummary(sessionKey, env, summary) {
   const scriptsDir = findScriptsDir(sessionKey, env);
   const learningsDir = getLearningsDir(env);
   const summaryFile = join(learningsDir, 'session-summaries.md');
-  
+
   const timestamp = new Date().toLocaleString('zh-CN', { timeZone: 'Asia/Shanghai' });
   const agentId = sessionKey ? sessionKey.split(':')[1] || 'unknown' : 'unknown';
-  
+
   // 生成总结内容
   const content = `## ${timestamp} | ${agentId} | 会话总结
 
@@ -397,7 +490,7 @@ ${summary.errors?.length ? `**遇到的问题**: ${summary.errors.join('; ')}` :
 
 ---
 `;
-  
+
   try {
     appendFileSync(summaryFile, content, 'utf8');
   } catch (e) {
@@ -410,25 +503,25 @@ ${summary.errors?.length ? `**遇到的问题**: ${summary.errors.join('; ')}` :
 // ============================================================
 const handler = async (event) => {
   if (!event || typeof event !== 'object') return;
-  
+
   const sessionKey = event.sessionKey || '';
   const env = process.env;
-  
+
   // 跳过子 agent
   if (sessionKey.includes(':subagent:')) return;
-  
+
   const eventType = event.type;
   const eventAction = event.action;
-  
+
   // ============================================================
   // 1. agent/bootstrap - 启动时注入经验提醒
   // ============================================================
   if (eventType === 'agent' && eventAction === 'bootstrap') {
     if (!event.context || typeof event.context !== 'object') return;
-    
+
     const scriptsDir = findScriptsDir(sessionKey, env);
     const reminder = generateReminder(scriptsDir);
-    
+
     if (event.context.systemPrompt !== undefined) {
       event.context.systemPrompt += reminder;
     } else if (Array.isArray(event.context.messages)) {
@@ -436,18 +529,17 @@ const handler = async (event) => {
     }
     return;
   }
-  
+
   // ============================================================
-  // 2. before_compaction - 压缩前：对话内容 → 模型判断 → 生成草稿
+  // 2. before_compaction - 压缩前:保存内容到待处理队列
   // ============================================================
   if (event.type === 'before_compaction') {
     const messages = event.messages || event.context?.messages || [];
-    const learningsDir = getLearningsDir(env);
     const scriptsDir = findScriptsDir(sessionKey, env);
-    
-    // 保存状态（供 after_compaction 使用）
+
+    // 保存状态(供 after_compaction 使用)
     saveCompactionState(sessionKey, env, messages);
-    
+
     // 自动搜索相关经验并注入上下文
     const searchResult = autoSearch(scriptsDir, messages);
     if (searchResult && event.context) {
@@ -457,45 +549,32 @@ const handler = async (event) => {
         event.context.messages.push({ role: 'system', content: searchResult });
       }
     }
-    
-    // 【核心】模型判断：这段对话值得写草稿吗？
-    const { task, tools, errors } = extractContextFromMessages(messages);
-    const conversationSummary = `任务: ${task || '无'}
-工具: ${tools.join(', ') || '无'}
-错误: ${errors.join('; ') || '无'}`;
-    
-    const judgeResult = callLLMJudge(conversationSummary, 'draft');
-    console.log(`[rocky-know-how] before_compaction LLM judge: worth=${judgeResult.worth}, reason=${judgeResult.reason}`);
-    
-    if (judgeResult.worth) {
-      // 生成草稿
-      const problem = judgeResult.summary || task || '会话总结';
-      const draftId = writeDraftWithJudge(learningsDir, sessionKey, problem, errors.join('; ') || '无', judgeResult.tags || tools);
-      
-      if (draftId) {
-        // 保存草稿ID，供 after_compaction 使用
-        const draftMarkerFile = join(learningsDir, '.draft-marker.tmp');
-        try {
-          writeFileSync(draftMarkerFile, draftId, 'utf8');
-          console.log(`[rocky-know-how] before_compaction: draft ${draftId} generated`);
-        } catch (e) {
-          // 忽略
-        }
+
+    // 【核心】保存到待处理队列(不做判断,让 Agent 后续处理)
+    const pendingId = savePendingLearnings(sessionKey, env, messages);
+    if (pendingId) {
+      const learningsDir = getLearningsDir(env);
+      const markerFile = join(learningsDir, '.pending-marker.tmp');
+      try {
+        writeFileSync(markerFile, pendingId, 'utf8');
+        console.log(`[rocky-know-how] before_compaction: pending ${pendingId} saved`);
+      } catch (e) {
+        // 忽略
       }
     }
-    
+
     return;
   }
-  
+
   // ============================================================
-  // 3. after_compaction - 压缩后：草稿内容 → 模型判断 → 写入正式经验
+  // 3. after_compaction - 压缩后:直接处理待处理内容
   // ============================================================
   if (event.type === 'after_compaction') {
     const learningsDir = getLearningsDir(env);
     const scriptsDir = findScriptsDir(sessionKey, env);
     const stateFile = join(learningsDir, '.compaction-state.tmp');
-    const draftMarkerFile = join(learningsDir, '.draft-marker.tmp');
-    
+    const pendingMarkerFile = join(learningsDir, '.pending-marker.tmp');
+
     // 读取保存的状态
     let savedState = null;
     try {
@@ -505,7 +584,7 @@ const handler = async (event) => {
     } catch (e) {
       // 忽略
     }
-    
+
     const summary = {
       task: savedState?.task || event.task || '会话压缩',
       tools: savedState?.tools || [],
@@ -514,111 +593,64 @@ const handler = async (event) => {
       reason: event.reason || 'context_overflow',
       sessionKey
     };
-    
+
     // 记录会话总结
     recordSessionSummary(sessionKey, env, summary);
-    
-    // 【核心】压缩后：检查草稿，模型判断是否写入正式经验
+
+    // 【核心】直接处理待处理内容
     try {
-      if (existsSync(draftMarkerFile)) {
-        const draftId = readFileSync(draftMarkerFile, 'utf8').trim();
-        const draftsDir = join(learningsDir, 'drafts');
-        const draftFile = join(draftsDir, `${draftId}.json`);
-        
-        if (draftId && existsSync(draftFile)) {
-          // 读取草稿内容
-          const draftContent = readFileSync(draftFile, 'utf8');
-          const draft = JSON.parse(draftContent);
-          
-          // 模型判断：这个草稿值得写入正式经验吗？
-          const draftSummary = `问题: ${draft.problem || '无'}
-尝试: ${draft.tried || '无'}
-标签: ${(draft.tags || []).join(', ')}`;
-          
-          const judgeResult = callLLMJudge(draftSummary, 'formal');
-          console.log(`[rocky-know-how] after_compaction LLM judge: worth=${judgeResult.worth}, reason=${judgeResult.reason}`);
-          
-          if (judgeResult.worth) {
-            // 用AI优化后的方案更新草稿
-            if (judgeResult.solution) {
-              draft.solution = judgeResult.solution;
-            }
-            if (judgeResult.prevention) {
-              draft.prevention = judgeResult.prevention;
-            }
-            // 写回草稿文件，auto-review会读取这个优化后的内容
-            try {
-              writeFileSync(draftFile, JSON.stringify(draft, null, 2), 'utf8');
-              console.log(`[rocky-know-how] after_compaction: draft ${draftId} updated with optimized solution`);
-            } catch (e) {
-              console.log(`[rocky-know-how] after_compaction: failed to update draft: ${e.message}`);
-            }
-            // 调用 auto-review 写入正式经验
-            console.log(`[rocky-know-how] after_compaction: draft ${draftId} approved, running auto-review`);
-            runAutoReview(scriptsDir, learningsDir);
-          } else {
-            console.log(`[rocky-know-how] after_compaction: draft ${draftId} rejected by LLM, skipping`);
-            // 归档草稿（不写入）
-            const archiveDir = join(draftsDir, 'archive');
-            if (!existsSync(archiveDir)) {
-              mkdirSync(archiveDir, { recursive: true });
-            }
-            const archiveFile = join(archiveDir, `${draftId}.json`);
-            try {
-              require('fs').renameSync(draftFile, archiveFile);
-              console.log(`[rocky-know-how] after_compaction: draft ${draftId} archived (rejected)`);
-            } catch (e) {
-              // 忽略
-            }
-          }
-        }
-        unlinkSync(draftMarkerFile);
+      // 检查 pending 目录
+      const pendingDir = join(learningsDir, 'pending');
+      if (!existsSync(pendingDir)) {
+        console.log(`[rocky-know-how] after_compaction: no pending learnings dir`);
+        return;
       }
+
+      const files = require('fs').readdirSync(pendingDir).filter(f => f.endsWith('.json'));
+
+      if (files.length === 0) {
+        console.log(`[rocky-know-how] after_compaction: no pending learnings`);
+        return;
+      }
+
+      console.log(`[rocky-know-how] after_compaction: found ${files.length} pending learnings, processing directly`);
+
+      // 逐个处理
+      for (const file of files) {
+        const pendingFile = join(pendingDir, file);
+        processPendingItem(pendingFile, scriptsDir, learningsDir);
+      }
+
     } catch (e) {
       console.log(`[rocky-know-how] after_compaction error: ${e.message}`);
     }
-    
+
     // 清理临时文件
     try {
       if (existsSync(stateFile)) {
         require('fs').unlinkSync(stateFile);
+      }
+      if (existsSync(pendingMarkerFile)) {
+        require('fs').unlinkSync(pendingMarkerFile);
       }
     } catch (e) {
       // 忽略
     }
     return;
   }
-  
+
   // ============================================================
-  // 4. before_reset - 重置前：模型判断 → 生成草稿 → 写入正式经验
+  // 4. before_reset - 重置前:保存内容到待处理队列
   // ============================================================
   if (event.type === 'before_reset') {
     const messages = event.messages || event.context?.messages || [];
-    const learningsDir = getLearningsDir(env);
-    const scriptsDir = findScriptsDir(sessionKey, env);
-    
-    // 模型判断：这段对话值得写草稿吗？
-    const { task, tools, errors } = extractContextFromMessages(messages);
-    const conversationSummary = `任务: ${task || '无'}\n工具: ${tools.join(', ') || '无'}\n错误: ${errors.join('; ') || '无'}`;
-    
-    const judgeResult = callLLMJudge(conversationSummary, 'draft');
-    console.log(`[rocky-know-how] before_reset LLM judge: worth=${judgeResult.worth}, reason=${judgeResult.reason}`);
-    
-    if (judgeResult.worth) {
-      // 生成草稿
-      const problem = judgeResult.summary || task || '会话总结';
-      const draftId = writeDraftWithJudge(learningsDir, sessionKey, problem, errors.join('; ') || '无', judgeResult.tags || tools);
-      
-      // 保存状态
-      saveCompactionState(sessionKey, env, messages);
-      
-      // 自动审核写入正式经验
-      if (draftId) {
-        console.log(`[rocky-know-how] before_reset: draft ${draftId} approved, running auto-review`);
-        runAutoReview(scriptsDir, learningsDir);
-      }
+
+    // 保存到待处理队列
+    const pendingId = savePendingLearnings(sessionKey, env, messages);
+    if (pendingId) {
+      console.log(`[rocky-know-how] before_reset: pending ${pendingId} saved`);
     }
-    
+
     return;
   }
 };

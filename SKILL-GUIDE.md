@@ -953,6 +953,6 @@ bash scripts/demote.sh        # 降级不常用
 
 ---
 
-**最后更新**: 2026-04-24 v2.8.10  
+**最后更新**: 2026-04-24 v2.9.1  
 **维护人**: 大颖 (fs-daying)  
 **反馈**: https://gitee.com/rocky_tian/skill/issues
