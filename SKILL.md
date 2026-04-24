@@ -4,19 +4,7 @@ slug: rocky-know-how
 version: 2.9.3
 homepage: https://clawhub.ai/skills/rocky-know-how
 description: "Learning knowledge skill v2.9.3 — Search learnings when failing 2+ times, write after solving. Layered storage (HOT/WARM/COLD), auto-promotion/demotion, 4-event hook integration. Core innovations: (1) Auto-draft mechanism (two-phase: draft→review→formal), (2) Vector search with LM Studio, (3) Auto-fallback when no embedding model, (4) before_compaction→pending/after_compaction→LLM判断→写入experiences.md. Fixes: H1 (regex injection), H2 (path traversal), concurrent write lock. v2.9.3: 全Provider LLM判断支持(zai/stepfun/minimax OAuth)，extractAssistantMessage多格式兼容。"
-changelog: |
-  v2.9.3: feat: 全Provider LLM判断支持 - ctx.agentId查配置反推provider，OAuth从auth-profiles.json读token。
-  v2.9.3: feat: extractAssistantMessage多格式兼容 - OpenAI/Anthropic/国产模型reasoning字段。
-  v2.9.3: feat: LLM判断"新增 vs 追加"替代关键词匹配 - decideCreateOrAppend()语义判断+相似经验全文对比。
-  v2.9.3: feat: draft文件处理后归档到drafts/archive/，保持与auto-review.sh一致的归档行为。
-  v2.9.3: fix: searchSimilarExperiences block regex修复 - 匹配含标题行的经验条目格式。
-  v2.9.3: fix: processPendingItem worth=true时pending文件未归档bug修复。
-  v2.9.1: 🎯 直接处理模式 - after_compaction直接处理pending，不再触发子agent。
-  v2.9.1: after_compaction集成LLM判断流程 - callLLMJudge→decideCreateOrAppend→record/append。
-  v2.9.1: 压缩前生成草稿/压缩后写入正式经验，两阶段分工明确。
-  v2.9.1: after_compaction全自动草稿审核集成。
-  v2.9.1: 🆕 auto-review.sh全自动草稿审核脚本。
-  v2.9.1: 安全修复 (H1/H2)，compact.sh memory.md压缩优化。
+
 metadata: {"openclaw":{"emoji":"📚","requires":{"bins":[]},"os":["darwin","linux","win32"]}}
 ---
 

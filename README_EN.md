@@ -129,20 +129,6 @@ bash ~/.openclaw/skills/rocky-know-how/scripts/record.sh \
 
 ---
 
-## 📖 Version History
-
-| Version | Date | Highlights |
-|---------|------|------------|
-| **v2.9.3** | 2026-04-24 | 🤖 Full provider LLM support (zai/stepfun/minimax OAuth) |
-| **v2.9.3** | 2026-04-24 | 🐛 extractAssistantMessage multi-format compatible |
-| v2.9.3 | 2026-04-24 | 🤖 LLM double-judge create/append (vs keyword match) |
-| v2.9.3 | 2026-04-24 | draft + pending auto-archive |
-| v2.9.1 | 2026-04-24 | 🎯 Direct processing mode + remove hardcoded model |
-| v2.9.1 | 2026-04-24 | after_compaction LLM double-judge integrated |
-| v2.9.0 | 2026-04-24 | before_compaction → after_compaction auto-write |
-
----
-
 ## 🔗 Links
 
 - [ClawHub](https://clawhub.ai/skills/rocky-know-how)

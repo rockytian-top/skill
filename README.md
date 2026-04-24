@@ -142,20 +142,6 @@ bash ~/.openclaw/skills/rocky-know-how/scripts/record.sh \
 
 ---
 
-## 📖 版本历史
-
-| 版本 | 日期 | 亮点 |
-|------|------|------|
-| **v2.9.3** | 2026-04-24 | 🤖 全Provider LLM判断(zai/stepfun/minimax OAuth) |
-| **v2.9.3** | 2026-04-24 | 🐛 extractAssistantMessage多格式兼容 |
-| v2.9.3 | 2026-04-24 | 🤖 LLM双判断create/append替代关键词匹配 |
-| v2.9.3 | 2026-04-24 | draft + pending 双归档避免目录膨胀 |
-| v2.9.1 | 2026-04-24 | 🎯 直接处理模式 + 移除硬编码模型 |
-| v2.9.1 | 2026-04-24 | after_compaction LLM双判断集成 |
-| v2.9.0 | 2026-04-24 | 压缩前生成草稿/压缩后写入正式经验 |
-
----
-
 ## 🔗 链接
 
 - [ClawHub](https://clawhub.ai/skills/rocky-know-how)

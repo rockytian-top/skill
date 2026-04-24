@@ -283,6 +283,11 @@ ${content}`;
     };
     if (model) payload.model = model;
 
+    // minimax-portal 使用 anthropic-messages API，需要显式禁用 thinking
+    if (providerInfo.providerId === 'minimax-portal') {
+      payload.thinking = { type: 'disabled' };
+    }
+
     const result = execSync(`curl -s -X POST "${apiUrl}" \
       -H "Content-Type: application/json" \
       -H "Authorization: Bearer ${apiKey}" \
@@ -375,6 +380,11 @@ ${similarCtx}`;
       max_tokens: 600
     };
     if (model) payload.model = model;
+
+    // minimax-portal 使用 anthropic-messages API，需要显式禁用 thinking
+    if (providerInfo.providerId === 'minimax-portal') {
+      payload.thinking = { type: 'disabled' };
+    }
 
     const result = execSync(`curl -s -X POST "${apiUrl}" \
       -H "Content-Type: application/json" \
