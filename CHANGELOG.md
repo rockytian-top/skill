@@ -1,5 +1,25 @@
 # CHANGELOG
 
+## [2.8.17] - 2026-04-24
+
+### 🎯 压缩前生成草稿 / 压缩后写入正式经验
+
+**背景**: Rocky 明确流程分工
+
+#### 流程调整
+
+| 阶段 | Hook | 输入 | 输出 |
+|------|------|------|------|
+| **压缩前** | `before_compaction` | 对话内容 (messages) | 生成草稿 `drafts/draft-*.json` |
+| **压缩后** | `after_compaction` | 草稿内容 | 自动审核 → 写入 `experiences.md` |
+
+#### 实现方式
+- `before_compaction`: 调用 `generateDraft()` 从原始对话消息生成草稿，通过 `.draft-marker.tmp` 传递草稿ID
+- `after_compaction`: 读取草稿ID，检查草稿存在，调用 `runAutoReview()` 写入正式经验
+- 分工明确：压缩前负责"从对话提取"，压缩后负责"从草稿写入"
+
+---
+
 ## [2.8.15] - 2026-04-24
 
 ### 🎯 after_compaction 全自动草稿审核集成
