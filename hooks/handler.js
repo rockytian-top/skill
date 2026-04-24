@@ -1,13 +1,13 @@
 /**
  * rocky-know-how Hook for OpenClaw
  *
- * v2.8.15 - after_compaction 全自动草稿审核集成
+ * v2.8.17 - 压缩前生成草稿 / 压缩后写入正式经验
  * - agent/bootstrap: 启动时注入经验诀窍提醒
- * - before_compaction: 压缩前保存任务状态
- * - after_compaction: 压缩后记录总结 + 生成草稿 + 自动审核写入经验
+ * - before_compaction: 对话内容 → 生成草稿（drafts/）
+ * - after_compaction: 草稿内容 → 自动审核 → 写入正式经验（experiences.md）
  * - before_reset: 生成草稿 → 自动审核 → 写入经验
  *
- * @version 2.8.15
+ * @version 2.8.17
  */
 
 const { existsSync, readFileSync, writeFileSync, appendFileSync, unlinkSync, mkdirSync } = require('fs');
@@ -384,35 +384,50 @@ const handler = async (event) => {
   }
   
   // ============================================================
-  // 2. before_compaction - 压缩前保存任务状态 + 自动搜索
+  // 2. before_compaction - 压缩前：对话内容 → 生成草稿
   // ============================================================
   if (event.type === 'before_compaction') {
     const messages = event.messages || event.context?.messages || [];
+    const learningsDir = getLearningsDir(env);
     
-    // 保存状态
+    // 保存状态（供 after_compaction 使用）
     saveCompactionState(sessionKey, env, messages);
     
     // 自动搜索相关经验并注入上下文
     const scriptsDir = findScriptsDir(sessionKey, env);
     const searchResult = autoSearch(scriptsDir, messages);
     if (searchResult && event.context) {
-      // 注入到 systemPrompt 或 messages
       if (event.context.systemPrompt !== undefined) {
         event.context.systemPrompt += searchResult;
       } else if (Array.isArray(event.context.messages)) {
         event.context.messages.push({ role: 'system', content: searchResult });
       }
     }
+    
+    // 【核心】压缩前从对话内容生成草稿
+    const draftId = generateDraft(sessionKey, env, messages);
+    if (draftId) {
+      // 保存草稿ID，供 after_compaction 使用
+      const draftMarkerFile = join(learningsDir, '.draft-marker.tmp');
+      try {
+        writeFileSync(draftMarkerFile, draftId, 'utf8');
+        console.log(`[rocky-know-how] before_compaction: draft ${draftId} generated from conversation`);
+      } catch (e) {
+        // 忽略
+      }
+    }
+    
     return;
   }
   
   // ============================================================
-  // 3. after_compaction - 压缩后记录总结 + 自动草稿审核
+  // 3. after_compaction - 压缩后：草稿内容 → 生成正式经验
   // ============================================================
   if (event.type === 'after_compaction') {
     const learningsDir = getLearningsDir(env);
     const scriptsDir = findScriptsDir(sessionKey, env);
     const stateFile = join(learningsDir, '.compaction-state.tmp');
+    const draftMarkerFile = join(learningsDir, '.draft-marker.tmp');
     
     // 读取保存的状态
     let savedState = null;
@@ -436,13 +451,22 @@ const handler = async (event) => {
     // 记录会话总结
     recordSessionSummary(sessionKey, env, summary);
     
-    // 生成草稿（从 savedState）
-    const draftId = generateDraftFromState(sessionKey, env, savedState);
-    
-    // 如果生成了草稿，自动调用 auto-review.sh 完成 增/优化/去重/写入
-    if (draftId) {
-      console.log(`[rocky-know-how] after_compaction: draft ${draftId} created, running auto-review`);
-      runAutoReview(scriptsDir, learningsDir);
+    // 【核心】压缩后：检查是否有草稿，有则自动审核写入正式经验
+    let hasDraft = false;
+    try {
+      if (existsSync(draftMarkerFile)) {
+        const draftId = readFileSync(draftMarkerFile, 'utf8').trim();
+        // 检查草稿是否实际存在
+        const draftsDir = join(learningsDir, 'drafts');
+        if (draftId && existsSync(join(draftsDir, `${draftId}.json`))) {
+          hasDraft = true;
+          console.log(`[rocky-know-how] after_compaction: draft ${draftId} found, running auto-review`);
+          runAutoReview(scriptsDir, learningsDir);
+        }
+        unlinkSync(draftMarkerFile);
+      }
+    } catch (e) {
+      // 忽略
     }
     
     // 清理临时文件
