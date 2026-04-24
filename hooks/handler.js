@@ -91,9 +91,9 @@ function runAutoReview(scriptsDir, learningsDir) {
  * @returns {object} { worth: boolean, reason: string, summary?: string, tags?: string[] }
  */
 function callLLMJudge(content, type) {
-  // 模型 API 地址
-  const apiUrl = process.env.LLM_API_URL || 'http://localhost:1234/v1/chat/completions';
-  const model = process.env.LLM_MODEL || 'local-model';
+  // 模型 API 地址 (ZAI/GLM-4-Flash)
+  const apiUrl = process.env.LLM_API_URL || 'https://open.bigmodel.cn/api/coding/paas/v4/chat/completions';
+  const model = process.env.LLM_MODEL || 'glm-4-flash';
   
   let systemPrompt, userPrompt;
   
@@ -142,6 +142,9 @@ ${content}`;
   }
   
   try {
+    // 获取 API Key
+    const apiKey = process.env.LLM_API_KEY || 'f0478a9dc1554fbe84b794e9528c6900.elAEl9DP520WLtaA';
+    
     const payload = {
       model: model,
       messages: [
@@ -154,6 +157,7 @@ ${content}`;
     
     const result = execSync(`curl -s -X POST "${apiUrl}" \
       -H "Content-Type: application/json" \
+      -H "Authorization: Bearer ${apiKey}" \
       -d '${JSON.stringify(payload).replace(/'/g, "'\\''")}' \
       --max-time 30`, {
       encoding: 'utf8',
