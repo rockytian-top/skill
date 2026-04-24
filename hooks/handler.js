@@ -1,13 +1,13 @@
 /**
  * rocky-know-how Hook for OpenClaw
  *
- * v2.8.14 - before_reset 全自动草稿审核集成
+ * v2.8.15 - after_compaction 全自动草稿审核集成
  * - agent/bootstrap: 启动时注入经验诀窍提醒
  * - before_compaction: 压缩前保存任务状态
- * - after_compaction: 压缩后记录会话总结
+ * - after_compaction: 压缩后记录总结 + 生成草稿 + 自动审核写入经验
  * - before_reset: 生成草稿 → 自动审核 → 写入经验
  *
- * @version 2.8.14
+ * @version 2.8.15
  */
 
 const { existsSync, readFileSync, writeFileSync, appendFileSync, unlinkSync, mkdirSync } = require('fs');
@@ -85,7 +85,7 @@ function runAutoReview(scriptsDir, learningsDir) {
 }
 
 /**
- * 生成草稿文件
+ * 从 messages 生成草稿文件（用于 before_reset）
  */
 function generateDraft(sessionKey, env, messages) {
   const learningsDir = getLearningsDir(env);
@@ -104,6 +104,37 @@ function generateDraft(sessionKey, env, messages) {
     return null;
   }
   
+  return writeDraft(draftsDir, sessionKey, task, errors.join('; '), tools.slice(0, 5));
+}
+
+/**
+ * 从 savedState 生成草稿文件（用于 after_compaction）
+ */
+function generateDraftFromState(sessionKey, env, savedState) {
+  const learningsDir = getLearningsDir(env);
+  const draftsDir = join(learningsDir, 'drafts');
+  
+  if (!existsSync(draftsDir)) {
+    mkdirSync(draftsDir, { recursive: true });
+  }
+  
+  const task = savedState?.task;
+  const errors = savedState?.errors || [];
+  const tools = savedState?.tools || [];
+  
+  // 只有"有任务 + 有错误"才生成草稿
+  if (!task || errors.length === 0) {
+    console.log('[rocky-know-how] No task or errors in savedState, skipping draft generation');
+    return null;
+  }
+  
+  return writeDraft(draftsDir, sessionKey, task, errors.join('; '), tools.slice(0, 5));
+}
+
+/**
+ * 写入草稿文件的通用函数
+ */
+function writeDraft(draftsDir, sessionKey, problem, tried, tools) {
   const timestamp = Date.now();
   const draftId = `draft-${timestamp}-${sessionKey.replace(/[^a-zA-Z0-9]/g, '')}`;
   const draftFile = join(draftsDir, `${draftId}.json`);
@@ -113,11 +144,11 @@ function generateDraft(sessionKey, env, messages) {
     createdAt: new Date().toISOString(),
     sessionKey,
     shouldCreate: true,
-    problem: task,
-    tried: errors.join('; '),
+    problem,
+    tried,
     solution: "待补充",
-    tags: tools.length > 0 ? tools.slice(0, 5) : ['unknown'],
-    area: inferArea(task),
+    tags: tools.length > 0 ? tools : ['unknown'],
+    area: inferArea(problem),
     status: 'pending_review'
   };
   
@@ -376,10 +407,11 @@ const handler = async (event) => {
   }
   
   // ============================================================
-  // 3. after_compaction - 压缩后记录会话总结
+  // 3. after_compaction - 压缩后记录总结 + 自动草稿审核
   // ============================================================
   if (event.type === 'after_compaction') {
     const learningsDir = getLearningsDir(env);
+    const scriptsDir = findScriptsDir(sessionKey, env);
     const stateFile = join(learningsDir, '.compaction-state.tmp');
     
     // 读取保存的状态
@@ -401,7 +433,17 @@ const handler = async (event) => {
       sessionKey
     };
     
+    // 记录会话总结
     recordSessionSummary(sessionKey, env, summary);
+    
+    // 生成草稿（从 savedState）
+    const draftId = generateDraftFromState(sessionKey, env, savedState);
+    
+    // 如果生成了草稿，自动调用 auto-review.sh 完成 增/优化/去重/写入
+    if (draftId) {
+      console.log(`[rocky-know-how] after_compaction: draft ${draftId} created, running auto-review`);
+      runAutoReview(scriptsDir, learningsDir);
+    }
     
     // 清理临时文件
     try {

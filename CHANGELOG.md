@@ -1,5 +1,48 @@
 # CHANGELOG
 
+## [2.8.15] - 2026-04-24
+
+### 🎯 after_compaction 全自动草稿审核集成
+
+**背景**: Rocky 反馈希望"压缩后触发，自动 AI 草稿，增加，优化，去重，写入正式经验"
+
+**改动**: 在 `after_compaction` Hook 中增加完整的自动草稿流程
+
+#### 原有流程
+```
+before_compaction → 保存状态 → 压缩 → after_compaction → 记录总结
+```
+
+#### 新增流程（after_compaction）
+```
+after_compaction
+    ↓
+recordSessionSummary() → 写入 session-summaries.md
+    ↓
+generateDraftFromState() → 从 savedState 生成草稿
+    ↓
+runAutoReview() → 自动审核（搜索同类/去重/写入正式经验）
+```
+
+#### 代码变更
+
+| 函数 | 变更 |
+|------|------|
+| `generateDraft()` | 拆分为通用 `writeDraft()` + 消息版 `generateDraft()` |
+| `generateDraftFromState()` | **新增** - 从 savedState 生成草稿（用于 after_compaction） |
+| `after_compaction` handler | 增加草稿生成 + auto-review 调用 |
+
+#### 触发条件
+- 有 savedState.task（非空）
+- 有 savedState.errors（至少1条错误）
+
+#### 影响
+- `before_reset` 仍保留原有草稿生成流程
+- `after_compaction` 现在也会在压缩后自动写入经验
+- 双重保障：压缩后 + 重置前都会触发自动审核
+
+---
+
 ## [2.8.12] - 2026-04-24
 
 ### ✅ 全自动流程测试验证通过
