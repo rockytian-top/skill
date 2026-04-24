@@ -61,10 +61,26 @@ function getLearningsDir(env) {
 }
 
 /**
- * 从 hook event context 解析出当前 agent 使用的 provider 配置
- * @param {object} event - hook 事件对象
- * @returns {object|null} { provider, apiUrl, apiKey, model }
+ * 从 LLM API 响应中提取 assistant 消息
+ * 支持 OpenAI completions 格式和 Anthropic messages 格式
+ * @param {object} parsed - JSON.parse 后的响应
+ * @returns {string} assistant 消息内容
  */
+function extractAssistantMessage(parsed) {
+  // OpenAI format: choices[0].message.content
+  if (parsed.choices?.[0]?.message?.content) {
+    return parsed.choices[0].message.content;
+  }
+  // Anthropic messages format: content[].text
+  if (parsed.content && Array.isArray(parsed.content)) {
+    const textBlock = parsed.content.find(block => block.type === 'text');
+    if (textBlock?.text) {
+      return textBlock.text;
+    }
+  }
+  return '';
+}
+
 /**
  * 从 event context 或 agent 配置解析 provider 信息
  * @param {object} event - hook event 对象
@@ -263,7 +279,7 @@ ${content}`;
     });
 
     const parsed = JSON.parse(result);
-    const assistantMsg = parsed.choices?.[0]?.message?.content || '';
+    const assistantMsg = extractAssistantMessage(parsed);
 
     // 解析 JSON 响应
     const jsonMatch = assistantMsg.match(/\{[\s\S]*\}/);
@@ -356,7 +372,7 @@ ${similarCtx}`;
     });
 
     const parsed = JSON.parse(result);
-    const assistantMsg = parsed.choices?.[0]?.message?.content || '';
+    const assistantMsg = extractAssistantMessage(parsed);
     const jsonMatch = assistantMsg.match(/\{[\s\S]*\}/);
     if (jsonMatch) {
       return JSON.parse(jsonMatch[0]);
