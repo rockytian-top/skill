@@ -62,7 +62,7 @@ process_draft() {
     log "Keywords: $keywords"
     
     # 搜索同类经验
-    similar_ids=$(bash "$SCRIPT_DIR/search.sh" $keywords 2>/dev/null | grep -oE 'EXP-[0-9]{8}-[0-9]{4}' | head -5 || echo "")
+    similar_ids=$(bash "$SCRIPT_DIR/search.sh" $keywords 2>/dev/null | grep -oE 'EXP-[0-9]{8}-[0-9]{3}' | head -5 || echo "")
     
     if [ -n "$similar_ids" ]; then
         # 有同类经验 → 追加新方式
