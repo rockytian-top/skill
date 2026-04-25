@@ -1,14 +1,14 @@
 ---
 name: rocky-know-how
 slug: rocky-know-how
-version: 3.4.2
+version: 3.4.5
 homepage: https://clawhub.ai/skills/rocky-know-how
-description: "Learning knowledge skill v3.4.2 — vector search with bge-large-zh-v1.5, auto-fallback to keyword search, preprocessing for numbers/English/spell-correction. Tested & verified: deepseek-v4, glm-5.1, minimax-m2.7."
+description: "Learning knowledge skill v3.4.5 — vector search with bge-large-zh-v1.5, auto-fallback to keyword search, preprocessing for numbers/English/spell-correction. Tested & verified: deepseek-v4, glm-5.1, minimax-m2.7."
 
 metadata: {"openclaw":{"emoji":"📚","requires":{"bins":["bash"]},"os":["darwin","linux"]}}
 ---
 
-# rocky-know-how v3.4.2
+# rocky-know-how v3.4.5
 
 **Experience & Knowledge Auto-Learning System for OpenClaw Agents**
 
@@ -241,4 +241,4 @@ Hooks needed:
 
 ---
 
-_Version: 3.4.2 | Tested: 2026-04-25 | License: MIT_
+_Version: 3.4.5 | Tested: 2026-04-25 | License: MIT_
