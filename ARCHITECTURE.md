@@ -511,7 +511,7 @@ esac
 | 组件 | 用途 | 配置 |
 |------|------|------|
 | Embedding API | `http://localhost:1234/v1/embeddings` | 默认端口 |
-| 模型 | `text-embedding-qwen3-embedding-0.6b` | 约 400MB |
+| 模型 | `text-embedding-bge-large-zh-v1.5` | 1024维，中文优化 |
 | 降级策略 | 检测失败 → 自动切关键词搜索 | 无感切换 |
 
 ### 3. 与 NapCat QQ 机器人
