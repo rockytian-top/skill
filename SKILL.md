@@ -241,4 +241,4 @@ Hooks needed:
 
 ---
 
-_Version: 3.3.0 | Tested: 2026-04-25 | License: MIT_
+_Version: 3.4.2 | Tested: 2026-04-25 | License: MIT_
