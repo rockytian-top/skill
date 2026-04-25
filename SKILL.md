@@ -1,7 +1,7 @@
 ---
 name: rocky-know-how
 slug: rocky-know-how
-version: 3.3.0
+version: 3.4.0
 homepage: https://clawhub.ai/skills/rocky-know-how
 description: "Learning knowledge skill v3.3.0 — agent_end-driven real-time memory processing, bootstrap injection with live stats, AI-only decision (create/append/skip), workspace-size-tracked change detection, global .learnings/ sharing. Tested & verified: deepseek-v4, glm-5.1, minimax-m2.7."
 
