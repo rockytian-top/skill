@@ -7,7 +7,9 @@
 set -e
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
-LEARNINGS_DIR="$HOME/.openclaw/.learnings"
+source "$SCRIPT_DIR/lib/common.sh"
+STATE_DIR=$(get_state_dir)
+LEARNINGS_DIR=$(get_shared_dir)
 DRAFTS_DIR="$LEARNINGS_DIR/drafts"
 ARCHIVE_DIR="$DRAFTS_DIR/archive"
 LOG_FILE="$LEARNINGS_DIR/.summarize.log"
@@ -36,8 +38,11 @@ find "$DRAFTS_DIR" -name "*.json" -type f 2>/dev/null | while read f; do
     echo "$content" >> "$DRAFTS_CONTENT"
 done
 
-# 生成 AI 提示
-cat << AIAVS > /tmp/summarize-prompt.txt
+# 生成 AI 提示（使用 mktemp 确保临时文件安全清理）
+SUMMARY_PROMPT=$(mktemp /tmp/rocky-know-how-summarize.XXXXXX)
+trap 'rm -f "$SUMMARY_PROMPT" "$DRAFTS_CONTENT"' EXIT
+
+cat << AIAVS > "$SUMMARY_PROMPT"
 你是一个经验记录审核员。请分析以下草稿，判断哪些值得写入正式经验库。
 
 判断标准：
@@ -58,7 +63,7 @@ record.sh "问题" "踩坑过程" "解决方案" "预防措施" "标签"
 如果所有草稿都不值得记录，输出：无需记录
 AIAVS
 
-log "草稿已准备好，请使用 AI 读取 /tmp/summarize-prompt.txt 进行判断"
+log "草稿已准备好，请使用 AI 读取 $SUMMARY_PROMPT 进行判断"
 
 # 标记草稿为待审核
 find "$DRAFTS_DIR" -name "*.json" -type f 2>/dev/null | while read f; do
@@ -74,7 +79,4 @@ with open('$f', 'w') as fp:
 " 2>/dev/null || true
 done
 
-# 清理临时文件
-rm -f "$DRAFTS_CONTENT"
-
-log "汇总任务创建完成"
+log "汇总任务创建完成（临时文件: $SUMMARY_PROMPT, 退出时自动清理）"

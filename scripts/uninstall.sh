@@ -1,12 +1,12 @@
 #!/bin/bash
-# rocky-know-how 卸载脚本 v2.9.1
+# rocky-know-how 卸载脚本 v3.3.0
 # 用法: bash uninstall.sh
 # 本脚本只删除数据文件，不修改配置文件。
 
 set -e
 
 echo "╔════════════════════════════════════════════╗"
-echo "║  rocky-know-how 卸载脚本 v2.9.1          ║"
+echo "║  rocky-know-how 卸载脚本 v3.3.0          ║"
 echo "╚════════════════════════════════════════════╝"
 echo ""
 

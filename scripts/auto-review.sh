@@ -4,7 +4,8 @@
 # 草稿 → AI判断 → AI优化增强 → 同类检测 → 自动新增/追加 → 写入experiences.md → 自动晋升
 # ============================================================
 
-set -e
+# 从 set -e 改为显式错误处理
+set -E
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 LEARNINGS_DIR="$HOME/.openclaw/.learnings"
@@ -50,6 +51,15 @@ process_draft() {
     
     if [ -z "$problem" ]; then
         log "WARN: Draft empty, skipping"
+        return
+    fi
+    
+    # 跳过 solution 不完整的草稿（防止写入"待补充"到 experiences.md）
+    if [ -z "$solution" ] || [ "$solution" = "待补充" ]; then
+        log "SKIP: solution 未完成 (待补充)，跳过此草稿"
+        mv "$draft_file" "$ARCHIVE_DIR/"
+        log "Archived: $draft_id (skipped - incomplete)"
+        log ""
         return
     fi
     

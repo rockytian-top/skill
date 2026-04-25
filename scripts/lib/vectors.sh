@@ -1,5 +1,5 @@
 #!/bin/bash
-# 向量搜索工具库 v2.7.0
+# 向量搜索工具库 v3.3.0
 # 依赖 LM Studio embedding API
 
 VECTOR_API="${VECTOR_API:-http://localhost:1234/v1/embeddings}"
@@ -222,7 +222,7 @@ with open(index_path, 'w', encoding='utf-8') as idx:
         if emb is None:
             continue
 
-        record = {'id': entry_id, 'text': text, 'vector': emb, 'area': area, 'namespace': namespace, 'tags': tags}
+        record = {'id': 'EXP-' + entry_id, 'text': text, 'vector': emb, 'area': area, 'namespace': namespace, 'tags': tags}
         idx.write(json.dumps(record, ensure_ascii=False) + '\n')
         count += 1
         print('  Indexing: ' + str(count), flush=True)
