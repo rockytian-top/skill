@@ -255,5 +255,5 @@ bash ~/.openclaw/skills/rocky-know-how/scripts/uninstall.sh
 ---
 
 **最新更新**: 2026-04-25 15:29  
-**版本**: 3.4.6  
+**版本**: 3.4.7  
 **状态**: ✅ 生产就绪

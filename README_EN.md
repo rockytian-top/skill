@@ -1,10 +1,10 @@
-# rocky-know-how v3.4.6
+# rocky-know-how v3.4.7
 
 **Experience & Knowledge Auto-Learning System for OpenClaw Agents**
 
 > Enable AI Agents to learn from failures and automatically record successes, forming a complete experience closed-loop.
 
-[![Version](https://img.shields.io/badge/version-3.4.6-blue)]()
+[![Version](https://img.shields.io/badge/version-3.4.7-blue)]()
 [![Models Tested](https://img.shields.io/badge/models_tested-deepseek_v4%20%7C%20glm_5.1%20%7C%20minimax_m2.7-green)]()
 [![Code Lines](https://img.shields.io/badge/code-4632_lines-orange)]()
 
@@ -131,4 +131,4 @@ bash scripts/stats.sh
 
 ---
 
-_Version: 3.4.6 | Tested: 2026-04-25 | License: MIT_
+_Version: 3.4.7 | Tested: 2026-04-25 | License: MIT_
