@@ -4,7 +4,7 @@
 
 > Enable AI Agents to learn from failures and automatically record successes, forming a complete experience closed-loop.
 
-[![Version](https://img.shields.io/badge/version-3.4.0-blue)]()
+[![Version](https://img.shields.io/badge/version-3.4.2-blue)]()
 [![Models Tested](https://img.shields.io/badge/models_tested-deepseek_v4%20%7C%20glm_5.1%20%7C%20minimax_m2.7-green)]()
 [![Code Lines](https://img.shields.io/badge/code-4632_lines-orange)]()
 
