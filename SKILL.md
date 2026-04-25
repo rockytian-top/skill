@@ -8,7 +8,7 @@ description: "Learning knowledge skill v3.4.2 — vector search with bge-large-z
 metadata: {"openclaw":{"emoji":"📚","requires":{"bins":["bash"]},"os":["darwin","linux"]}}
 ---
 
-# rocky-know-how v3.3.0
+# rocky-know-how v3.4.2
 
 **Experience & Knowledge Auto-Learning System for OpenClaw Agents**
 
