@@ -1,4 +1,4 @@
-# rocky-know-how v3.3.0
+# rocky-know-how v3.4.1
 
 **Experience & Knowledge Auto-Learning System for OpenClaw Agents**
 
